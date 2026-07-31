@@ -95,8 +95,76 @@ def out(cmd: list[str], cwd: str | None = None) -> str:
 
 
 # --------------------------------------------------------------------------- #
-# Source 1: GitHub — the week's commits and merged PRs
+# Source 1: GitHub — commits, PRs, and the actual diffs of pertinent files
+# (results like .json/.csv, and plan/notes .md files) across active repos.
 # --------------------------------------------------------------------------- #
+GH_FILE_EXT = {".md", ".json", ".csv", ".tsv", ".yaml", ".yml"}
+GH_FILE_NAME_RE = re.compile(r"(plan|note|result|todo|changelog|readme|metric|eval|score)", re.I)
+GH_FILE_EXCLUDE_RE = re.compile(
+    r"(package-lock\.json|yarn\.lock|poetry\.lock|\.min\.|(^|/)(node_modules|dist|build|vendor|\.venv)/|\.ipynb$)",
+    re.I,
+)
+GH_MAX_FILE_PATCH = 1500     # chars of diff kept per file
+GH_MAX_TOTAL = 12000         # chars of file-diff material total
+
+
+def _gh_pertinent(filename: str) -> bool:
+    if GH_FILE_EXCLUDE_RE.search(filename):
+        return False
+    name = Path(filename).name
+    return Path(filename).suffix.lower() in GH_FILE_EXT or bool(GH_FILE_NAME_RE.search(name))
+
+
+def _gh_repo_file_changes(requests, headers, full_name: str) -> str:
+    """Aggregate this week's diffs of pertinent files in one repo, as text."""
+    try:
+        owner, repo = full_name.split("/", 1)
+    except ValueError:
+        return ""
+    r = requests.get(
+        f"https://api.github.com/repos/{owner}/{repo}/commits",
+        params={"author": GITHUB_USER, "since": f"{SINCE_ISO}T00:00:00Z", "per_page": 100},
+        headers=headers, timeout=30,
+    )
+    if not r.ok or not r.json():
+        return ""
+    commits = r.json()
+    head = commits[0]["sha"]
+    parents = commits[-1].get("parents") or []
+    files = []
+    try:
+        if parents:  # net diff over the week: base = parent of oldest commit
+            rc = requests.get(
+                f"https://api.github.com/repos/{owner}/{repo}/compare/{parents[0]['sha']}...{head}",
+                headers=headers, timeout=30,
+            )
+            files = rc.json().get("files", []) if rc.ok else []
+        else:  # initial commit in the repo
+            rc = requests.get(
+                f"https://api.github.com/repos/{owner}/{repo}/commits/{head}",
+                headers=headers, timeout=30,
+            )
+            files = rc.json().get("files", []) if rc.ok else []
+    except Exception as exc:  # noqa: BLE001
+        log(f"GitHub compare errored for {full_name}: {exc}")
+        return ""
+
+    blocks = []
+    for f in files:
+        fn = f.get("filename", "")
+        if not _gh_pertinent(fn):
+            continue
+        patch = (f.get("patch") or "").strip()
+        if not patch:  # binary or too large; note the change without the diff
+            blocks.append(f"#### {full_name}/{fn} ({f.get('status', '')}, no text diff)")
+            continue
+        blocks.append(
+            f"#### {full_name}/{fn} ({f.get('status', '')})\n```diff\n"
+            + patch[:GH_MAX_FILE_PATCH] + "\n```"
+        )
+    return "\n\n".join(blocks)
+
+
 def gather_github() -> str:
     if not GITHUB_TOKEN:
         log("no GH_REPORT_TOKEN; skipping GitHub")
@@ -113,18 +181,20 @@ def gather_github() -> str:
         "X-GitHub-Api-Version": "2022-11-28",
     }
     lines: list[str] = []
+    active_repos: list[str] = []
 
     q = f"author:{GITHUB_USER} author-date:>={SINCE_ISO}"
     try:
         r = requests.get(
             "https://api.github.com/search/commits",
             params={"q": q, "sort": "author-date", "per_page": 100},
-            headers=headers,
-            timeout=30,
+            headers=headers, timeout=30,
         )
         if r.ok:
             for item in r.json().get("items", []):
                 repo = item.get("repository", {}).get("full_name", "?")
+                if repo not in active_repos:
+                    active_repos.append(repo)
                 msg = (item.get("commit", {}).get("message", "") or "").splitlines()[0]
                 lines.append(f"- [{repo}] {msg}")
         else:
@@ -137,8 +207,7 @@ def gather_github() -> str:
         r = requests.get(
             "https://api.github.com/search/issues",
             params={"q": q_pr, "per_page": 50},
-            headers=headers,
-            timeout=30,
+            headers=headers, timeout=30,
         )
         if r.ok:
             for item in r.json().get("items", []):
@@ -147,9 +216,32 @@ def gather_github() -> str:
     except Exception as exc:  # noqa: BLE001
         log(f"GitHub PR search errored: {exc}")
 
-    if not lines:
+    # Pull the actual diffs of pertinent files (results + plan/notes) per repo,
+    # up to a total budget so the drafter gets substance, not noise.
+    file_sections: list[str] = []
+    budget = GH_MAX_TOTAL
+    for repo in active_repos:
+        if budget <= 0:
+            break
+        chunk = _gh_repo_file_changes(requests, headers, repo)
+        if chunk:
+            chunk = chunk[:budget]
+            budget -= len(chunk)
+            file_sections.append(chunk)
+
+    if not lines and not file_sections:
         return ""
-    return "## GitHub activity (commits & PRs this week)\n" + "\n".join(lines)
+    parts = []
+    if lines:
+        parts.append("## GitHub activity (commits & PRs this week)\n" + "\n".join(lines))
+    if file_sections:
+        parts.append(
+            "## GitHub file changes this week (results, plans, notes)\n"
+            "Diffs of pertinent files. Treat results files (.json/.csv) as data, "
+            "and plan/notes .md files as intent/next-steps.\n\n"
+            + "\n\n".join(file_sections)
+        )
+    return "\n\n".join(parts)
 
 
 # --------------------------------------------------------------------------- #
@@ -388,7 +480,9 @@ Structure as Markdown with these sections, OMITTING any with no material:
 3. **Results** — what the numbers showed. If the Overleaf changes include results \
    tables, reproduce the changed table(s) as clean Markdown tables using the \
    actual values from the material. Embed verified figures (see below).
-4. **Writing** — progress on papers/thesis, from the Overleaf changes."""
+4. **Writing** — progress on papers/thesis, from the Overleaf changes.
+5. **Next** (optional) — planned next steps, ONLY if the material (e.g. plan or
+   notes .md files from GitHub) actually states them. Don't speculate."""
 
 ACCURACY_RULES = """\
 CRITICAL ACCURACY RULES:
