@@ -265,13 +265,27 @@ def _overleaf_projects() -> list[tuple[str, str]]:
     return items
 
 
-def _changed_tex_files(repo_dir: str) -> list[str]:
+EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"  # git's well-known empty tree
+
+
+def _window_base(repo_dir: str) -> str | None:
+    """Diff base for this week's changes: the parent of the oldest in-window
+    commit (or the empty tree if that's the repo's root). None => no activity.
+
+    This does NOT require a commit before the window, so it works even when a
+    project's whole git history is recent (common with Overleaf's git bridge)."""
+    shas = out(["git", "log", f"--since={SINCE_ISO}", "--format=%H"], cwd=repo_dir).split()
+    if not shas:
+        return None
+    oldest = shas[-1]
+    parent = out(["git", "rev-parse", "--verify", "--quiet", f"{oldest}^"], cwd=repo_dir).strip()
+    return parent or EMPTY_TREE
+
+
+def _changed_tex_files(repo_dir: str, base: str) -> list[str]:
     """.tex files changed during the window (paths relative to the repo)."""
-    first = out(["git", "rev-list", "-1", f"--before={SINCE_ISO}", "HEAD"], cwd=repo_dir).strip()
-    if not first:
-        return []
     names = out(
-        ["git", "diff", "--name-only", first, "HEAD", "--", "*.tex"], cwd=repo_dir
+        ["git", "diff", "--name-only", base, "HEAD", "--", "*.tex"], cwd=repo_dir
     ).splitlines()
     return [n.strip() for n in names if n.strip()]
 
@@ -336,18 +350,22 @@ def _render_figures(repo_dir: str, label: str, changed_tex: list[str]) -> list[d
         return []
     main_tex = _find_main_tex(repo_dir)
     if main_tex is None:
+        log(f"figure render: no main .tex (with \\documentclass) found for '{label}'")
         return []
     preamble = main_tex.read_text(encoding="utf-8", errors="replace").split("\\begin{document}", 1)[0]
 
     rendered: list[dict] = []
     fig_index = 0
+    tagged = 0
     for rel in changed_tex:
         tex_path = Path(repo_dir) / rel
         if not tex_path.exists():
             continue
-        for block, caption in _extract_tagged_figures(
-            tex_path.read_text(encoding="utf-8", errors="replace")
-        ):
+        figs_here = _extract_tagged_figures(tex_path.read_text(encoding="utf-8", errors="replace"))
+        if figs_here:
+            log(f"figure render: {len(figs_here)} tagged '{FIGURE_TAG}' figure(s) in {rel}")
+        for block, caption in figs_here:
+            tagged += 1
             fig_index += 1
             slug = re.sub(r"[^a-z0-9]+", "-", label.lower()).strip("-") or "fig"
             stem = f"{slug}-{fig_index}"
@@ -393,6 +411,8 @@ def _render_figures(repo_dir: str, label: str, changed_tex: list[str]) -> list[d
                 "source": rel,
                 "caption": caption,
             })
+    if tagged:
+        log(f"figure render '{label}': {len(rendered)}/{tagged} rendered OK")
     return rendered
 
 
@@ -409,16 +429,19 @@ def _overleaf_one(project_id: str, label: str) -> tuple[str, list[dict]]:
             ["git", "log", f"--since={SINCE_ISO}", "--pretty=format:- %ad %s", "--date=short"],
             cwd=tmp,
         ).strip()
-        changed = _changed_tex_files(tmp)
+        base = _window_base(tmp)
+        changed: list[str] = []
         stat = ""
         added_prose = ""
-        first = out(["git", "rev-list", "-1", f"--before={SINCE_ISO}", "HEAD"], cwd=tmp).strip()
-        if first:
-            stat = out(["git", "diff", "--stat", first, "HEAD", "--", "*.tex"], cwd=tmp).strip()
-            diff = out(["git", "diff", first, "HEAD", "--", "*.tex"], cwd=tmp)
+        if base:
+            changed = _changed_tex_files(tmp, base)
+            stat = out(["git", "diff", "--stat", base, "HEAD", "--", "*.tex"], cwd=tmp).strip()
+            diff = out(["git", "diff", base, "HEAD", "--", "*.tex"], cwd=tmp)
             added = [ln[1:].strip() for ln in diff.splitlines()
                      if ln.startswith("+") and not ln.startswith("+++")]
             added_prose = "\n".join(added)[:5000]
+        if changed:
+            log(f"Overleaf '{label}': {len(changed)} changed .tex file(s)")
 
         figures = _render_figures(tmp, label, changed) if changed else []
 
