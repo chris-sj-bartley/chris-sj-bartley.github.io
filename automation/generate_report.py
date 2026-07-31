@@ -3,23 +3,29 @@
 Weekly research-report: gather & prepare step.
 
 This runs first in .github/workflows/weekly-report.yml. It gathers the week's
-raw material from three sources — experiments (Titan, via a git repo the Titan
-collector pushes to), writing (Overleaf, via its git bridge), and code (GitHub) —
-copies any plots into the site's assets, and lays down:
+raw material from two sources — writing (Overleaf, via its git bridge) and code
++ results (GitHub) — renders any figures you tagged in your LaTeX to PNG, and
+lays down:
 
   * automation/_work/raw-material.md   the gathered facts
   * automation/_work/report-brief.md   the full instruction for the drafting step
+  * site/assets/weekly-reports/<week>/ rendered figure PNGs (if any)
   * site/_posts/<date>-weekly-report-<week>.md   the post file, front matter +
     a placeholder body line for the drafting step to replace
 
 The DRAFTING itself is NOT done here. A later step runs the Claude Code GitHub
 Action (authenticated with Chris's Claude subscription via CLAUDE_CODE_OAUTH_TOKEN)
-which reads report-brief.md and writes the Steven-Pinker-style body into the post
-file. A final step opens a PR — nothing is published until Chris reviews it.
+which reads report-brief.md, VISUALLY INSPECTS each rendered figure, and writes
+the Steven-Pinker-style body into the post file. A final step opens a PR — nothing
+is published until Chris reviews it.
 
-Everything degrades gracefully: a missing secret or unreachable source logs a
-warning and that section is simply left thin; the run never hard-fails because
-one source was down. Configuration is entirely by environment variable — see
+Experiments used to come from a Titan-side collector; that was dropped in favour
+of reading results straight from GitHub, since every machine (Titan, Cassini, …)
+publishes there anyway.
+
+Everything degrades gracefully: a missing secret, an unreachable source, or a
+figure that won't compile logs a warning and is skipped; the run never hard-fails.
+Configuration is by environment variable and two committed lists — see
 automation/README.md.
 """
 
@@ -27,6 +33,7 @@ from __future__ import annotations
 
 import datetime as dt
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -48,8 +55,9 @@ GITHUB_TOKEN = os.environ.get("GH_REPORT_TOKEN", "")   # PAT with repo contents:
 OVERLEAF_TOKEN = os.environ.get("OVERLEAF_TOKEN", "")   # account-wide git token (secret)
 OVERLEAF_PROJECTS_FILE = REPO_ROOT / "automation" / "overleaf_projects.txt"  # committed list of IDs
 
-TITAN_REPORT_REPO = os.environ.get("TITAN_REPORT_REPO", "")  # git URL the Titan collector pushes to
-TITAN_REPORT_TOKEN = os.environ.get("TITAN_REPORT_TOKEN", "")  # PAT if that repo is private
+# Mark a figure for the report by putting this comment on its own line directly
+# above \begin{figure}. Only tagged figures are rendered.
+FIGURE_TAG = os.environ.get("REPORT_FIGURE_TAG", "%@report")
 
 WEEK_DAYS = int(os.environ.get("REPORT_WINDOW_DAYS", "7"))
 
@@ -60,6 +68,9 @@ SINCE_ISO = SINCE.isoformat()
 ISO_YEAR, ISO_WEEK, _ = TODAY.isocalendar()
 WEEK_TAG = f"{ISO_YEAR}-W{ISO_WEEK:02d}"
 
+ASSETS_DIR = SITE_DIR / ASSETS_SUBDIR / WEEK_TAG            # where PNGs are written
+ASSETS_URL = f"/{ASSETS_SUBDIR}/{WEEK_TAG}"                 # how the site references them
+
 BODY_PLACEHOLDER = "<!-- REPORT-BODY: the drafting step replaces this line -->"
 
 
@@ -67,16 +78,20 @@ def log(msg: str) -> None:
     print(f"[weekly-report] {msg}", file=sys.stderr)
 
 
-def run(cmd: list[str], cwd: str | None = None) -> str:
-    """Run a command, return stdout, never raise on non-zero (log instead)."""
+def run(cmd: list[str], cwd: str | None = None, timeout: int = 180) -> subprocess.CompletedProcess:
+    """Run a command, returning the CompletedProcess, never raising (log instead)."""
     try:
-        out = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=180)
-        if out.returncode != 0:
-            log(f"command failed ({out.returncode}): {' '.join(cmd)}\n{out.stderr.strip()}")
-        return out.stdout
+        proc = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=timeout)
+        if proc.returncode != 0:
+            log(f"command failed ({proc.returncode}): {' '.join(cmd)}\n{proc.stderr.strip()[:500]}")
+        return proc
     except Exception as exc:  # noqa: BLE001 - degrade gracefully
         log(f"command errored: {' '.join(cmd)} -> {exc}")
-        return ""
+        return subprocess.CompletedProcess(cmd, returncode=1, stdout="", stderr=str(exc))
+
+
+def out(cmd: list[str], cwd: str | None = None) -> str:
+    return run(cmd, cwd=cwd).stdout
 
 
 # --------------------------------------------------------------------------- #
@@ -99,7 +114,6 @@ def gather_github() -> str:
     }
     lines: list[str] = []
 
-    # Commits authored in the window, across all repos.
     q = f"author:{GITHUB_USER} author-date:>={SINCE_ISO}"
     try:
         r = requests.get(
@@ -118,7 +132,6 @@ def gather_github() -> str:
     except Exception as exc:  # noqa: BLE001
         log(f"GitHub commit search errored: {exc}")
 
-    # Pull requests opened/updated in the window.
     q_pr = f"author:{GITHUB_USER} type:pr updated:>={SINCE_ISO}"
     try:
         r = requests.get(
@@ -140,15 +153,12 @@ def gather_github() -> str:
 
 
 # --------------------------------------------------------------------------- #
-# Source 2: Overleaf — what was written this week (git bridge)
+# Source 2: Overleaf — writing + tagged figures (git bridge)
 #
-# Overleaf's git token is account-wide (one token clones every project), but
-# there is no endpoint to list projects — so we keep a committed list of project
-# IDs in automation/overleaf_projects.txt and loop over it. Add one line there
-# when you create a new project. IDs are not secret; only OVERLEAF_TOKEN is.
+# The account-wide token clones every project; there is no list endpoint, so we
+# loop over a committed list of project IDs (automation/overleaf_projects.txt).
 # --------------------------------------------------------------------------- #
 def _overleaf_projects() -> list[tuple[str, str]]:
-    """Parse the project list -> [(project_id, label)]. Lines: `<id>  <label>`."""
     items: list[tuple[str, str]] = []
     if not OVERLEAF_PROJECTS_FILE.exists():
         return items
@@ -157,166 +167,281 @@ def _overleaf_projects() -> list[tuple[str, str]]:
         if not line or line.startswith("#"):
             continue
         parts = line.split(None, 1)
-        pid = parts[0].rstrip("/").split("/")[-1]      # accept a bare id or a full URL
+        pid = parts[0].rstrip("/").split("/")[-1]
         label = parts[1].strip() if len(parts) > 1 else pid
         items.append((pid, label))
     return items
 
 
-def _overleaf_one(project_id: str, label: str) -> str:
-    """Clone one project and summarise this week's .tex changes, or '' if none."""
+def _changed_tex_files(repo_dir: str) -> list[str]:
+    """.tex files changed during the window (paths relative to the repo)."""
+    first = out(["git", "rev-list", "-1", f"--before={SINCE_ISO}", "HEAD"], cwd=repo_dir).strip()
+    if not first:
+        return []
+    names = out(
+        ["git", "diff", "--name-only", first, "HEAD", "--", "*.tex"], cwd=repo_dir
+    ).splitlines()
+    return [n.strip() for n in names if n.strip()]
+
+
+def _find_main_tex(repo_dir: str) -> Path | None:
+    """The .tex containing \\documentclass and \\begin{document}."""
+    for path in Path(repo_dir).rglob("*.tex"):
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        if "\\documentclass" in text and "\\begin{document}" in text:
+            return path
+    return None
+
+
+def _extract_tagged_figures(tex_text: str) -> list[tuple[str, str]]:
+    """Return [(figure_source, caption)] for figures preceded by FIGURE_TAG."""
+    figs: list[tuple[str, str]] = []
+    pattern = re.compile(
+        re.escape(FIGURE_TAG) + r"[^\n]*\n\s*(\\begin\{figure\*?\}.*?\\end\{figure\*?\})",
+        re.DOTALL,
+    )
+    for m in pattern.finditer(tex_text):
+        block = m.group(1)
+        cap = re.search(r"\\caption\{(.*?)\}", block, re.DOTALL)
+        caption = re.sub(r"\s+", " ", cap.group(1)).strip() if cap else ""
+        figs.append((block, caption))
+    return figs
+
+
+def _png_ok(path: Path) -> bool:
+    """Valid PNG with sensible dimensions, and (if Pillow is present) not blank."""
+    try:
+        head = path.read_bytes()[:24]
+    except OSError:
+        return False
+    if len(head) < 24 or head[:8] != b"\x89PNG\r\n\x1a\n":
+        return False
+    width = int.from_bytes(head[16:20], "big")
+    height = int.from_bytes(head[20:24], "big")
+    if width < 40 or height < 40:
+        return False
+    try:
+        from PIL import Image  # optional; the model does the real visual check too
+    except ImportError:
+        return True
+    try:
+        img = Image.open(path).convert("L")
+        hist = img.histogram()
+        total = sum(hist) or 1
+        near_white = sum(hist[250:])           # near-white pixels
+        return (total - near_white) / total > 0.001
+    except Exception:  # noqa: BLE001
+        return True
+
+
+def _render_figures(repo_dir: str, label: str, changed_tex: list[str]) -> list[dict]:
+    """Compile figures tagged in changed .tex to validated PNGs. Returns metadata."""
+    if not shutil.which("pdflatex") or not shutil.which("pdftoppm"):
+        log("pdflatex/pdftoppm not available; skipping figure rendering")
+        return []
+    main_tex = _find_main_tex(repo_dir)
+    if main_tex is None:
+        return []
+    preamble = main_tex.read_text(encoding="utf-8", errors="replace").split("\\begin{document}", 1)[0]
+
+    rendered: list[dict] = []
+    fig_index = 0
+    for rel in changed_tex:
+        tex_path = Path(repo_dir) / rel
+        if not tex_path.exists():
+            continue
+        for block, caption in _extract_tagged_figures(
+            tex_path.read_text(encoding="utf-8", errors="replace")
+        ):
+            fig_index += 1
+            slug = re.sub(r"[^a-z0-9]+", "-", label.lower()).strip("-") or "fig"
+            stem = f"{slug}-{fig_index}"
+            # Wrap in the project's own preamble + the preview package to crop.
+            wrapper = (
+                preamble
+                + "\n\\usepackage[active,tightpage,floats]{preview}\n"
+                + "\\setlength\\PreviewBorder{6pt}\n"
+                + "\\PreviewEnvironment{figure}\n"
+                + "\\begin{document}\n"
+                + block
+                + "\n\\end{document}\n"
+            )
+            wrap_path = Path(repo_dir) / f"__report_{stem}.tex"
+            wrap_path.write_text(wrapper, encoding="utf-8")
+            # Compile in the project dir so \includegraphics + the .cls resolve.
+            ok = False
+            for _ in range(2):  # a second pass settles node references
+                proc = run(
+                    ["pdflatex", "-interaction=nonstopmode", "-halt-on-error",
+                     "-no-shell-escape", wrap_path.name],
+                    cwd=repo_dir,
+                    timeout=120,
+                )
+                ok = proc.returncode == 0
+                if not ok:
+                    break
+            pdf_path = wrap_path.with_suffix(".pdf")
+            if not (ok and pdf_path.exists()):
+                log(f"figure did not compile: {label} #{fig_index}")
+                continue
+            ASSETS_DIR.mkdir(parents=True, exist_ok=True)
+            png_path = ASSETS_DIR / f"{stem}.png"
+            run(["pdftoppm", "-png", "-r", "200", "-singlefile",
+                 str(pdf_path), str(png_path.with_suffix(""))])
+            if not _png_ok(png_path):
+                log(f"figure PNG failed validation, discarding: {label} #{fig_index}")
+                png_path.unlink(missing_ok=True)
+                continue
+            rendered.append({
+                "url": f"{ASSETS_URL}/{stem}.png",
+                "project": label,
+                "source": rel,
+                "caption": caption,
+            })
+    return rendered
+
+
+def _overleaf_one(project_id: str, label: str) -> tuple[str, list[dict]]:
+    """Summarise one project's weekly .tex changes and render its tagged figures."""
     url = f"https://git:{OVERLEAF_TOKEN}@git.overleaf.com/{project_id}"
     tmp = tempfile.mkdtemp(prefix="overleaf-")
     try:
         run(["git", "clone", "--quiet", url, tmp])
         if not (Path(tmp) / ".git").exists():
             log(f"Overleaf clone failed for {label} ({project_id})")
-            return ""
-        commits = run(
+            return "", []
+        commits = out(
             ["git", "log", f"--since={SINCE_ISO}", "--pretty=format:- %ad %s", "--date=short"],
             cwd=tmp,
         ).strip()
-        first = run(["git", "rev-list", "-1", f"--before={SINCE_ISO}", "HEAD"], cwd=tmp).strip()
+        changed = _changed_tex_files(tmp)
         stat = ""
         added_prose = ""
+        first = out(["git", "rev-list", "-1", f"--before={SINCE_ISO}", "HEAD"], cwd=tmp).strip()
         if first:
-            stat = run(["git", "diff", "--stat", first, "HEAD", "--", "*.tex"], cwd=tmp).strip()
-            diff = run(["git", "diff", first, "HEAD", "--", "*.tex"], cwd=tmp)
-            added = [
-                ln[1:].strip()
-                for ln in diff.splitlines()
-                if ln.startswith("+") and not ln.startswith("+++")
-            ]
-            added_prose = "\n".join(added)[:4000]  # bound per-project payload
-        if not (commits or stat):
-            return ""  # no change this week -> omit this project
+            stat = out(["git", "diff", "--stat", first, "HEAD", "--", "*.tex"], cwd=tmp).strip()
+            diff = out(["git", "diff", first, "HEAD", "--", "*.tex"], cwd=tmp)
+            added = [ln[1:].strip() for ln in diff.splitlines()
+                     if ln.startswith("+") and not ln.startswith("+++")]
+            added_prose = "\n".join(added)[:5000]
+
+        figures = _render_figures(tmp, label, changed) if changed else []
+
+        if not (commits or stat or figures):
+            return "", []
         parts = [f"### {label}"]
         if commits:
             parts.append("Commits:\n" + commits)
         if stat:
             parts.append("Changed files:\n" + stat)
         if added_prose:
-            parts.append("Lines added (prose the model may summarise):\n" + added_prose)
-        return "\n\n".join(parts)
+            parts.append(
+                "Lines added (prose + tables the model may summarise; reproduce "
+                "changed results tables as Markdown):\n" + added_prose
+            )
+        return "\n\n".join(parts), figures
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
 
-def gather_overleaf() -> str:
+def gather_overleaf() -> tuple[str, list[dict]]:
     if not OVERLEAF_TOKEN:
         log("no OVERLEAF_TOKEN; skipping Overleaf")
-        return ""
+        return "", []
     projects = _overleaf_projects()
     if not projects:
         log("no projects in automation/overleaf_projects.txt; skipping Overleaf")
-        return ""
-    blocks = [b for b in (_overleaf_one(pid, label) for pid, label in projects) if b]
+        return "", []
+    blocks: list[str] = []
+    figures: list[dict] = []
+    for pid, label in projects:
+        text, figs = _overleaf_one(pid, label)
+        if text:
+            blocks.append(text)
+        figures.extend(figs)
     if not blocks:
-        return ""
-    return "## Overleaf writing (LaTeX changes this week)\n\n" + "\n\n".join(blocks)
+        return "", figures
+    return "## Overleaf writing (LaTeX changes this week)\n\n" + "\n\n".join(blocks), figures
 
 
 # --------------------------------------------------------------------------- #
-# Source 3: Titan — experiment report the collector pushed to a git repo
-# --------------------------------------------------------------------------- #
-def gather_titan() -> str:
-    if not TITAN_REPORT_REPO:
-        log("no TITAN_REPORT_REPO; skipping Titan experiments")
-        return ""
-    url = TITAN_REPORT_REPO
-    if TITAN_REPORT_TOKEN and url.startswith("https://") and "@" not in url:
-        url = url.replace("https://", f"https://git:{TITAN_REPORT_TOKEN}@")
-
-    tmp = tempfile.mkdtemp(prefix="titan-")
-    try:
-        run(["git", "clone", "--quiet", "--depth", "1", url, tmp])
-        report_root = Path(tmp)
-
-        candidates = sorted(report_root.glob("reports/report-*.md"))
-        this_week = report_root / "reports" / f"report-{WEEK_TAG}.md"
-        chosen = this_week if this_week.exists() else (candidates[-1] if candidates else None)
-        if chosen is None:
-            log("no Titan report found in repo")
-            return ""
-
-        text = chosen.read_text(encoding="utf-8", errors="replace")
-
-        # Copy any plots beside the report into site assets, rewriting references
-        # to the published URL location.
-        dest_dir = SITE_DIR / ASSETS_SUBDIR / WEEK_TAG
-        dest_dir.mkdir(parents=True, exist_ok=True)
-        copied: list[str] = []
-        for img in (
-            list(chosen.parent.glob("*.png"))
-            + list(chosen.parent.glob("*.svg"))
-            + list(chosen.parent.glob("*.jpg"))
-        ):
-            shutil.copy2(img, dest_dir / img.name)
-            copied.append(img.name)
-            text = text.replace(img.name, f"/{ASSETS_SUBDIR}/{WEEK_TAG}/{img.name}")
-
-        note = ""
-        if copied:
-            urls = "\n".join(f"- /{ASSETS_SUBDIR}/{WEEK_TAG}/{n}" for n in copied)
-            note = "\n\nPlot images available to embed (use exact URLs):\n" + urls
-        return "## Experiments on Titan (this week's report)\n" + text + note
-    finally:
-        shutil.rmtree(tmp, ignore_errors=True)
-
-
-# --------------------------------------------------------------------------- #
-# The drafting brief (style + accuracy rules) handed to the Claude Code action
+# The drafting brief (style + accuracy + figure verification) for Claude
 # --------------------------------------------------------------------------- #
 PINKER_STYLE = """\
 Write in the first person ("I"). Use the classic prose style of Steven Pinker's \
 *The Sense of Style*: clear, concrete, and confident.
 - Treat prose as a window onto the world: show what happened; don't narrate the \
-  act of reporting. No metadiscourse ("In this report I will…", "It is worth \
-  noting…").
-- Prefer concrete nouns and strong verbs over abstraction. Name the actual \
-  experiment, model, metric, or file.
+  act of reporting. No metadiscourse.
+- Prefer concrete nouns and strong verbs. Name the actual experiment, model, \
+  metric, or file.
 - Explain each result to an intelligent reader who is NOT a speech-technology \
   specialist — define a term the first time it matters, then move on.
-- Be economical: cut hedging and filler. Coherent paragraphs, not bullet soup, \
-  though a short list is fine for enumerating concrete results.
-- Curious and engaged in tone; never breathless or self-congratulatory.
+- Be economical; coherent paragraphs, not bullet soup (a short list for concrete \
+  results is fine).
 
-Structure as Markdown with these sections, OMITTING any that has no material \
-(do not pad):
-1. A short opening summary (2–4 sentences) — the week in a nutshell.
+Structure as Markdown with these sections, OMITTING any with no material:
+1. A short opening summary (2-4 sentences).
 2. **Experiments** — what was run and why.
-3. **Results** — what the numbers showed. Embed any provided plot images with \
-   Markdown image syntax using the exact URLs given in the material.
-4. **Writing** — progress on papers/thesis, drawn from the Overleaf changes."""
+3. **Results** — what the numbers showed. If the Overleaf changes include results \
+   tables, reproduce the changed table(s) as clean Markdown tables using the \
+   actual values from the material. Embed verified figures (see below).
+4. **Writing** — progress on papers/thesis, from the Overleaf changes."""
 
 ACCURACY_RULES = """\
 CRITICAL ACCURACY RULES:
 - Use ONLY the facts in raw-material.md. Do not invent experiments, numbers, \
-  results, or conclusions. If a source is empty or the week was thin, say so \
-  plainly rather than inflating it.
-- Never overstate significance. Report what the evidence shows, no more.
-- If something is ambiguous in the material, describe it cautiously, don't guess."""
+  results, or conclusions. If a source is empty or the week was thin, say so.
+- Never overstate significance. If something is ambiguous, describe it cautiously."""
 
 
-def write_brief(post_rel_path: str) -> Path:
+def _figures_section(figures: list[dict]) -> str:
+    if not figures:
+        return "No figures were tagged for rendering this week, so embed none."
+    lines = [
+        "Candidate figures have been rendered to PNG. For EACH one below you MUST:",
+        "  1. Open the PNG with the Read tool and actually look at it.",
+        "  2. Embed it (Markdown image, using the exact URL) ONLY if it shows a "
+        "clean, complete figure — not blank, not clipped, not a LaTeX error page.",
+        "  3. If it looks broken, do NOT embed it; briefly note the figure could "
+        "not be rendered cleanly.",
+        "Place each embedded figure near the relevant Results/Experiments text and "
+        "use its caption as the alt text / a short figure line.",
+        "",
+        "Candidates:",
+    ]
+    for f in figures:
+        # The PNG lives under site/, so its on-disk path for Read is site + url.
+        disk = f"site{f['url']}"
+        cap = f" — caption: {f['caption']}" if f["caption"] else ""
+        lines.append(f"- {f['project']}: url `{f['url']}`, file to inspect `{disk}`{cap}")
+    return "\n".join(lines)
+
+
+def write_brief(post_rel_path: str, figures: list[dict]) -> Path:
     WORK_DIR.mkdir(parents=True, exist_ok=True)
     brief = f"""\
 # Task: draft this week's research progress report
 
-Read the gathered material in `automation/_work/raw-material.md`. It contains this
-week's experiments (from Titan), writing (from Overleaf), and code activity (from
-GitHub) for the week {SINCE_ISO} to {TODAY.isoformat()} ({WEEK_TAG}).
+Read the gathered material in `automation/_work/raw-material.md`. It covers the
+week {SINCE_ISO} to {TODAY.isoformat()} ({WEEK_TAG}): writing from Overleaf and
+code + results from GitHub.
 
 Then edit the file `{post_rel_path}`: replace the single placeholder line
 `{BODY_PLACEHOLDER}` (directly beneath the YAML front matter) with the drafted
-report body in Markdown. Do NOT modify the YAML front matter — leave everything
-between the `---` markers exactly as it is. Do not create any other files.
+report body in Markdown. Do NOT modify the YAML front matter. Do not create any
+other files (you may Read the figure PNGs listed below to inspect them).
 
 ## Style
 {PINKER_STYLE}
 
 ## Accuracy
 {ACCURACY_RULES}
+
+## Figures (verify before embedding)
+{_figures_section(figures)}
 """
     path = WORK_DIR / "report-brief.md"
     path.write_text(brief, encoding="utf-8")
@@ -350,23 +475,27 @@ def write_post_shell() -> Path:
 def main() -> None:
     WORK_DIR.mkdir(parents=True, exist_ok=True)
 
-    sections = [s for s in (gather_github(), gather_overleaf(), gather_titan()) if s]
+    gh = gather_github()
+    overleaf_text, figures = gather_overleaf()
+
+    sections = [s for s in (gh, overleaf_text) if s]
     if sections:
         raw = "\n\n---\n\n".join(sections)
     else:
         log("no material gathered from any source; brief will note a quiet week")
-        raw = "No experiment, writing, or code activity was captured for this week."
+        raw = "No writing or code activity was captured for this week."
     (WORK_DIR / "raw-material.md").write_text(raw, encoding="utf-8")
 
     post_path = write_post_shell()
     post_rel = post_path.relative_to(REPO_ROOT).as_posix()
-    write_brief(post_rel)
-    log(f"prepared {post_rel} and drafting brief")
+    write_brief(post_rel, figures)
+    log(f"prepared {post_rel}; {len(figures)} figure(s) rendered")
 
     if os.environ.get("GITHUB_OUTPUT"):
         with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as fh:
             fh.write(f"post_path={post_rel}\n")
             fh.write(f"week_tag={WEEK_TAG}\n")
+            fh.write(f"figure_count={len(figures)}\n")
 
 
 if __name__ == "__main__":

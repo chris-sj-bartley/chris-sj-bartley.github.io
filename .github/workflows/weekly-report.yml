@@ -31,13 +31,18 @@ jobs:
       - name: Install dependencies
         run: pip install -r automation/requirements.txt
 
-      - name: Gather the week's material and prepare the post
+      - name: Install LaTeX toolchain (for rendering tagged figures)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            texlive-latex-recommended texlive-latex-extra texlive-pictures \
+            texlive-fonts-recommended texlive-science lmodern poppler-utils
+
+      - name: Gather the week's material, render figures, prepare the post
         id: gather
         env:
           GH_REPORT_TOKEN: ${{ secrets.GH_REPORT_TOKEN }}
           OVERLEAF_TOKEN: ${{ secrets.OVERLEAF_TOKEN }}
-          TITAN_REPORT_REPO: ${{ secrets.TITAN_REPORT_REPO }}
-          TITAN_REPORT_TOKEN: ${{ secrets.TITAN_REPORT_TOKEN }}
         run: python automation/generate_report.py
 
       - name: Draft the report body with Claude (subscription auth)

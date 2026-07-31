@@ -7,18 +7,19 @@ via the **Claude Code Action authenticated with your Claude subscription** (an
 OAuth token — not API billing, so no card or console credit is spent).
 
 ```
-  TITAN (Thu cron)                    GITHUB ACTIONS (Fri 08:00 UTC)
-  weekly_collect.py  ── git push ──▶  1. generate_report.py gathers:
-   • scan results dir                    • Titan report repo (experiments+plots)
-   • metrics + plots                     • Overleaf git bridge → diff .tex
-   • report-YYYY-Www.md                  • GitHub API → week's commits & PRs
-                                         → writes _work/raw-material.md + brief
-                                         → lays down the post shell in _posts/
-                                      2. Claude Code Action (subscription auth)
-                                         reads the brief → writes Pinker-style body
-                                      3. create-pull-request opens the PR
-                                         ──▶ you review & merge ──▶ Pages deploy
+  GITHUB ACTIONS (Fri 08:00 UTC)
+  1. generate_report.py gathers:
+     • GitHub API → week's commits, PRs, results
+     • Overleaf git bridge → diff .tex (writing + results tables)
+     • renders figures tagged %@report → validated PNGs in site assets
+     → writes _work/raw-material.md + brief; lays down the post shell in _posts/
+  2. Claude Code Action (subscription auth): reads the brief, VISUALLY INSPECTS
+     each rendered figure, writes the Pinker-style body (embeds only good figures)
+  3. create-pull-request opens the PR  ──▶ you review & merge ──▶ Pages deploy
 ```
+
+Experiments come straight from **GitHub** — every machine (Titan, Cassini, …)
+publishes results there, so there's no per-server collector to maintain.
 
 The draft post is created with `crosspost: false`, so a weekly report never
 propagates to the Gaelg AI blog unless you flip that to `true` while reviewing.
@@ -50,8 +51,6 @@ secret**. Add:
 | `CLAUDE_CODE_OAUTH_TOKEN` | The token from `claude setup-token` (step 1). Draws on your Claude subscription. | **Yes** |
 | `GH_REPORT_TOKEN` | Fine-grained PAT with **Contents: read** across your repos (to list the week's commits/PRs). github.com → Settings → Developer settings → Fine-grained tokens. | Recommended |
 | `OVERLEAF_TOKEN` | Your account-wide Overleaf git authentication token (one token, all projects) — see step 4 | Optional |
-| `TITAN_REPORT_REPO` | git URL of the repo the Titan collector pushes to | Optional |
-| `TITAN_REPORT_TOKEN` | PAT with read access to that repo, **if it is private** | Only if private |
 
 Any optional source you leave unset is simply skipped — the report is built from
 whatever is available. For a first smoke test you need only
@@ -88,21 +87,23 @@ there is no API to list projects, so you maintain a short list of project IDs.
    commit. That's the only per-project step — the account token already covers it.
    Projects with no changes in a given week are silently skipped.
 
-### 5. Titan side
+### 5. Figures (rendered from your LaTeX, verified before embedding)
 
-1. Create a **private** git repo for the reports, e.g. `weekly-reports`, and set
-   `TITAN_REPORT_REPO` (and `TITAN_REPORT_TOKEN`) to it.
-2. On Titan, clone that repo somewhere writable and make sure `git push` works
-   there (SSH key or a stored token).
-3. Copy [`titan/weekly_collect.py`](titan/weekly_collect.py) to Titan and edit
-   the two `ADAPT:` blocks so it reads **your** metrics and plots.
-4. Add a weekly cron (`crontab -e`), Thursday 20:00, so the report is ready
-   before Friday's run:
-   ```cron
-   0 20 * * 4 cd /home/chris/automation && /usr/bin/python3 weekly_collect.py \
-       --results-dir /data/chris/experiments \
-       --report-repo /path/to/weekly-reports >> collect.log 2>&1
-   ```
+Results **tables** need nothing — the drafter reproduces changed tables as
+Markdown from the `.tex`. **Figures** are rendered only when you opt each one in:
+
+1. Put a comment line `%@report` directly above the `\begin{figure}` you want in
+   the report (change the marker with the `REPORT_FIGURE_TAG` env var if you like).
+2. Each Friday, tagged figures in `.tex` files that changed that week are compiled
+   with your project's own class + preamble (via the LaTeX `preview` package, in
+   the cloned project so `\includegraphics` resolves), converted to PNG, and
+   validated (valid, non-blank, sensible size).
+3. The drafting step then **opens each PNG and looks at it**, embedding only the
+   ones that render cleanly and noting any that don't. You get the final say in
+   the PR, where every embedded figure shows in the diff.
+
+Figures that fail to compile or look broken are skipped — they never silently
+land in the report. Nothing to configure beyond the `%@report` tags.
 
 ### 6. Test it before trusting the schedule
 
