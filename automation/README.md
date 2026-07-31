@@ -75,6 +75,15 @@ there is no API to list projects, so you maintain a short list of project IDs.
    [`overleaf_projects.txt`](overleaf_projects.txt), one per line
    (`<project-id>  <label>`). The project ID is the last part of the project URL:
    `https://www.overleaf.com/project/<project-id>`. Commit the file.
+
+   **Too many to list by hand?** Run the one-time bootstrap, which reads your
+   browser session cookie and generates the file for you:
+   ```
+   python3 automation/bootstrap_overleaf_projects.py
+   ```
+   It prompts for your `overleaf_session2` cookie (DevTools → Application →
+   Cookies → overleaf.com) without echoing it, and never uses that cookie in the
+   weekly job — that stays on `OVERLEAF_TOKEN`. Re-run it any time to refresh.
 3. **Adding a new project later:** add one line to `overleaf_projects.txt` and
    commit. That's the only per-project step — the account token already covers it.
    Projects with no changes in a given week are silently skipped.
