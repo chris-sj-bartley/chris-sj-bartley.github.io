@@ -265,31 +265,6 @@ def _overleaf_projects() -> list[tuple[str, str]]:
     return items
 
 
-EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"  # git's well-known empty tree
-
-
-def _window_base(repo_dir: str) -> str | None:
-    """Diff base for this week's changes: the parent of the oldest in-window
-    commit (or the empty tree if that's the repo's root). None => no activity.
-
-    This does NOT require a commit before the window, so it works even when a
-    project's whole git history is recent (common with Overleaf's git bridge)."""
-    shas = out(["git", "log", f"--since={SINCE_ISO}", "--format=%H"], cwd=repo_dir).split()
-    if not shas:
-        return None
-    oldest = shas[-1]
-    parent = out(["git", "rev-parse", "--verify", "--quiet", f"{oldest}^"], cwd=repo_dir).strip()
-    return parent or EMPTY_TREE
-
-
-def _changed_tex_files(repo_dir: str, base: str) -> list[str]:
-    """.tex files changed during the window (paths relative to the repo)."""
-    names = out(
-        ["git", "diff", "--name-only", base, "HEAD", "--", "*.tex"], cwd=repo_dir
-    ).splitlines()
-    return [n.strip() for n in names if n.strip()]
-
-
 def _find_main_tex(repo_dir: str) -> Path | None:
     """The .tex containing \\documentclass and \\begin{document}."""
     for path in Path(repo_dir).rglob("*.tex"):
@@ -343,27 +318,30 @@ def _png_ok(path: Path) -> bool:
         return True
 
 
-def _render_figures(repo_dir: str, label: str, changed_tex: list[str]) -> list[dict]:
-    """Compile figures tagged in changed .tex to validated PNGs. Returns metadata."""
+def _all_tex_files(repo_dir: str) -> list[Path]:
+    return [p for p in Path(repo_dir).rglob("*.tex") if not p.name.startswith("__report_")]
+
+
+def _render_figures(repo_dir: str, label: str) -> list[dict]:
+    """Compile every %@report-tagged figure in the project to validated PNGs.
+
+    Driven by the tag, not by weekly change detection — Overleaf's git bridge
+    doesn't expose reliable history, so the explicit tag is the opt-in signal."""
     if not shutil.which("pdflatex") or not shutil.which("pdftoppm"):
         log("pdflatex/pdftoppm not available; skipping figure rendering")
         return []
     main_tex = _find_main_tex(repo_dir)
     if main_tex is None:
-        log(f"figure render: no main .tex (with \\documentclass) found for '{label}'")
         return []
     preamble = main_tex.read_text(encoding="utf-8", errors="replace").split("\\begin{document}", 1)[0]
 
     rendered: list[dict] = []
     fig_index = 0
     tagged = 0
-    for rel in changed_tex:
-        tex_path = Path(repo_dir) / rel
-        if not tex_path.exists():
-            continue
+    for tex_path in _all_tex_files(repo_dir):
         figs_here = _extract_tagged_figures(tex_path.read_text(encoding="utf-8", errors="replace"))
         if figs_here:
-            log(f"figure render: {len(figs_here)} tagged '{FIGURE_TAG}' figure(s) in {rel}")
+            log(f"figure render '{label}': {len(figs_here)} tagged figure(s) in {tex_path.name}")
         for block, caption in figs_here:
             tagged += 1
             fig_index += 1
@@ -382,20 +360,21 @@ def _render_figures(repo_dir: str, label: str, changed_tex: list[str]) -> list[d
             wrap_path = Path(repo_dir) / f"__report_{stem}.tex"
             wrap_path.write_text(wrapper, encoding="utf-8")
             # Compile in the project dir so \includegraphics + the .cls resolve.
-            ok = False
-            for _ in range(2):  # a second pass settles node references
-                proc = run(
-                    ["pdflatex", "-interaction=nonstopmode", "-halt-on-error",
-                     "-no-shell-escape", wrap_path.name],
-                    cwd=repo_dir,
-                    timeout=120,
-                )
-                ok = proc.returncode == 0
-                if not ok:
-                    break
+            # NOTE: no -halt-on-error, so a missing \includegraphics image is
+            # replaced by a draft box rather than aborting the whole figure.
+            proc = run(
+                ["pdflatex", "-interaction=nonstopmode", "-no-shell-escape",
+                 "-draftmode", wrap_path.name], cwd=repo_dir, timeout=120,
+            )
+            proc = run(
+                ["pdflatex", "-interaction=nonstopmode", "-no-shell-escape",
+                 wrap_path.name], cwd=repo_dir, timeout=120,
+            )
             pdf_path = wrap_path.with_suffix(".pdf")
-            if not (ok and pdf_path.exists()):
-                log(f"figure did not compile: {label} #{fig_index}")
+            if not pdf_path.exists():
+                errs = [ln for ln in proc.stdout.splitlines() if ln.startswith("!")]
+                tail = errs[:5] or proc.stdout.splitlines()[-12:]
+                log(f"figure did not compile: {label} #{fig_index}: " + " || ".join(tail))
                 continue
             ASSETS_DIR.mkdir(parents=True, exist_ok=True)
             png_path = ASSETS_DIR / f"{stem}.png"
@@ -425,31 +404,25 @@ def _overleaf_one(project_id: str, label: str) -> tuple[str, list[dict]]:
         if not (Path(tmp) / ".git").exists():
             log(f"Overleaf clone failed for {label} ({project_id})")
             return "", []
-        commits = out(
-            ["git", "log", f"--since={SINCE_ISO}", "--pretty=format:- %ad %s", "--date=short"],
-            cwd=tmp,
-        ).strip()
-        base = _window_base(tmp)
-        changed: list[str] = []
+        # Overleaf's git bridge exposes little/no history, so a weekly diff is
+        # only trustworthy when the project genuinely has a commit before the
+        # window. When it doesn't, skip the writing diff (rather than treat the
+        # whole project as rewritten). Figures are handled separately, by tag.
+        base = out(["git", "rev-list", "-1", f"--before={SINCE_ISO}", "HEAD"], cwd=tmp).strip()
         stat = ""
         added_prose = ""
         if base:
-            changed = _changed_tex_files(tmp, base)
             stat = out(["git", "diff", "--stat", base, "HEAD", "--", "*.tex"], cwd=tmp).strip()
             diff = out(["git", "diff", base, "HEAD", "--", "*.tex"], cwd=tmp)
             added = [ln[1:].strip() for ln in diff.splitlines()
                      if ln.startswith("+") and not ln.startswith("+++")]
             added_prose = "\n".join(added)[:5000]
-        if changed:
-            log(f"Overleaf '{label}': {len(changed)} changed .tex file(s)")
 
-        figures = _render_figures(tmp, label, changed) if changed else []
+        figures = _render_figures(tmp, label)
 
-        if not (commits or stat or figures):
-            return "", []
+        if not (added_prose or figures):
+            return "", figures
         parts = [f"### {label}"]
-        if commits:
-            parts.append("Commits:\n" + commits)
         if stat:
             parts.append("Changed files:\n" + stat)
         if added_prose:
@@ -457,6 +430,8 @@ def _overleaf_one(project_id: str, label: str) -> tuple[str, list[dict]]:
                 "Lines added (prose + tables the model may summarise; reproduce "
                 "changed results tables as Markdown):\n" + added_prose
             )
+        if figures and not added_prose:
+            parts.append("(A figure tagged for the report was rendered from this paper.)")
         return "\n\n".join(parts), figures
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
