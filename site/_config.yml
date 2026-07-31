@@ -71,7 +71,10 @@ defaults:
     values:
       layout: "post"
       author: ["Chris Bartley"]
-      crosspost: true
+      # Opt-in cross-posting: posts stay personal-only by default.
+      # Add `crosspost: true` to a post's front matter to propagate it
+      # to the Gaelg AI blog (via /blog.json, which Gaelg AI consumes).
+      crosspost: false
   - scope:
       path: ""
       type: "pages"

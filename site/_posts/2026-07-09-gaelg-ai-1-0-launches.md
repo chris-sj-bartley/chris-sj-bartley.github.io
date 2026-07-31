@@ -3,6 +3,7 @@ layout: post
 title: "Gaelg AI 1.0 launches"
 date: 2026-07-09
 description: "The Gaelg AI platform is now live as version 1.0, bringing the Speak, Listen, Translate, and Timestamp tools together in one place."
+crosspost: true   # propagate this post to the Gaelg AI blog
 ---
 
 I'm thrilled to announce that the Gaelg AI platform is now live. This is version **1.0**: the first public release, bringing together the speech and language tools I've been building for Manx into one place.
