@@ -292,6 +292,55 @@ def _extract_tagged_figures(tex_text: str) -> list[tuple[str, str]]:
     return figs
 
 
+def _remove_cmd_braced(s: str, cmd: str) -> str:
+    """Remove every \\cmd{...} with balanced braces (handles nesting)."""
+    token = "\\" + cmd + "{"
+    while True:
+        j = s.find(token)
+        if j == -1:
+            return s
+        depth, k, end = 0, j + len(token) - 1, None
+        while k < len(s):
+            if s[k] == "{":
+                depth += 1
+            elif s[k] == "}":
+                depth -= 1
+                if depth == 0:
+                    end = k
+                    break
+            k += 1
+        s = s[:j] + (s[end + 1:] if end is not None else "")
+
+
+def _strip_float(block: str) -> str:
+    """Reduce a figure float to its bare tikzpictures (drop float/caption/label)."""
+    s = re.sub(r"\\begin\{figure\*?\}(\[[^\]]*\])?", "", block)
+    s = re.sub(r"\\end\{figure\*?\}", "", s)
+    s = _remove_cmd_braced(s, "caption")
+    s = re.sub(r"\\label\{[^}]*\}", "", s)
+    return s.replace("\\centering", "")
+
+
+def _stack_pngs(pages: list[Path], out_path: Path) -> bool:
+    """Stack page PNGs vertically into one image (for multi-tikzpicture figures)."""
+    try:
+        from PIL import Image
+    except ImportError:
+        pages[0].replace(out_path)
+        return True
+    imgs = [Image.open(p).convert("RGB") for p in pages]
+    gap = 24
+    width = max(i.width for i in imgs)
+    height = sum(i.height for i in imgs) + gap * (len(imgs) - 1)
+    canvas = Image.new("RGB", (width, height), "white")
+    y = 0
+    for im in imgs:
+        canvas.paste(im, ((width - im.width) // 2, y))
+        y += im.height + gap
+    canvas.save(out_path)
+    return True
+
+
 def _png_check(path: Path) -> tuple[bool, str]:
     """(valid, note). Reject only clearly-broken PNGs (not a PNG, or tiny);
     the drafting model does the authoritative visual check for blank/clipped."""
@@ -347,28 +396,27 @@ def _render_figures(repo_dir: str, label: str) -> list[dict]:
             slug = re.sub(r"[^a-z0-9]+", "-", label.lower()).strip("-") or "fig"
             stem = f"{slug}-{fig_index}"
             # Wrap in the project's own preamble + the preview package to crop.
+            # Preview each tikzpicture (reliable), not the figure float (which
+            # crops to nothing). Strip the float wrapper so the tikzpictures are
+            # top-level. Compile in the project dir so \includegraphics resolves;
+            # no -halt-on-error, so a missing image becomes a box, not an abort.
             wrapper = (
                 preamble
-                + "\n\\usepackage[active,tightpage,floats]{preview}\n"
+                + "\n\\usepackage[active,tightpage]{preview}\n"
                 + "\\setlength\\PreviewBorder{6pt}\n"
-                + "\\PreviewEnvironment{figure}\n"
+                + "\\PreviewEnvironment{tikzpicture}\n"
                 + "\\begin{document}\n"
-                + block
+                + _strip_float(block)
                 + "\n\\end{document}\n"
             )
             wrap_path = Path(repo_dir) / f"__report_{stem}.tex"
             wrap_path.write_text(wrapper, encoding="utf-8")
-            # Compile in the project dir so \includegraphics + the .cls resolve.
-            # NOTE: no -halt-on-error, so a missing \includegraphics image is
-            # replaced by a draft box rather than aborting the whole figure.
-            proc = run(
-                ["pdflatex", "-interaction=nonstopmode", "-no-shell-escape",
-                 "-draftmode", wrap_path.name], cwd=repo_dir, timeout=120,
-            )
-            proc = run(
-                ["pdflatex", "-interaction=nonstopmode", "-no-shell-escape",
-                 wrap_path.name], cwd=repo_dir, timeout=120,
-            )
+            proc = None
+            for _ in range(2):  # second pass settles tikz node references
+                proc = run(
+                    ["pdflatex", "-interaction=nonstopmode", "-no-shell-escape",
+                     wrap_path.name], cwd=repo_dir, timeout=120,
+                )
             pdf_path = wrap_path.with_suffix(".pdf")
             if not pdf_path.exists():
                 errs = [ln for ln in proc.stdout.splitlines() if ln.startswith("!")]
@@ -376,11 +424,21 @@ def _render_figures(repo_dir: str, label: str) -> list[dict]:
                 log(f"figure did not compile: {label} #{fig_index}: " + " || ".join(tail))
                 continue
             ASSETS_DIR.mkdir(parents=True, exist_ok=True)
+            prefix = ASSETS_DIR / f"__pages_{stem}"
+            run(["pdftoppm", "-png", "-r", "200", str(pdf_path), str(prefix)])
+            pages = sorted(ASSETS_DIR.glob(f"__pages_{stem}-*.png"))
             png_path = ASSETS_DIR / f"{stem}.png"
-            run(["pdftoppm", "-png", "-r", "200", "-singlefile",
-                 str(pdf_path), str(png_path.with_suffix(""))])
+            if not pages:
+                log(f"figure produced no image: {label} #{fig_index}")
+                continue
+            if len(pages) == 1:
+                pages[0].replace(png_path)
+            else:
+                _stack_pngs(pages, png_path)
+                for p in pages:
+                    p.unlink(missing_ok=True)
             valid, note = _png_check(png_path)
-            log(f"figure PNG {label} #{fig_index}: {note}")
+            log(f"figure PNG {label} #{fig_index}: {note} ({len(pages)} page(s))")
             if not valid:
                 png_path.unlink(missing_ok=True)
                 continue
