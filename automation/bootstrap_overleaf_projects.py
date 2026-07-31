@@ -77,23 +77,64 @@ def fetch_projects_html(cookie: str) -> str:
     return body
 
 
-def parse_projects(page_html: str) -> list[dict]:
-    # Find the <meta name="ol-projects" ...> tag regardless of attribute order.
-    meta = re.search(r'<meta[^>]*\bname="ol-projects"[^>]*>', page_html)
-    if not meta:
-        sys.exit(
-            "Could not find the project list in the page. The cookie may be "
-            "expired, or Overleaf changed its markup. Try a fresh cookie first."
+# Overleaf has used different names/containers for the project blob over time.
+# Newer dashboards use `ol-prefetchedProjectsBlob` ({"projects": [...]}); older
+# ones used `ol-projects` (a bare list). The blob may live in a <meta content="">
+# (HTML-escaped JSON) or a <script>...</script> (raw JSON).
+CANDIDATE_KEYS = ("ol-prefetchedProjectsBlob", "ol-projects")
+
+
+def _extract_json_blob(page_html: str, key: str) -> str | None:
+    meta = re.search(r'<meta[^>]*\b(?:name|id)="' + re.escape(key) + r'"[^>]*>', page_html)
+    if meta:
+        content = re.search(r'\bcontent="([^"]*)"', meta.group(0))
+        if content:
+            return html.unescape(content.group(1))
+    script = re.search(
+        r'<script[^>]*\b(?:id|name)="' + re.escape(key) + r'"[^>]*>(.*?)</script>',
+        page_html,
+        re.DOTALL,
+    )
+    if script:
+        return script.group(1).strip()
+    return None
+
+
+def _diagnose_and_exit(page_html: str) -> None:
+    names = sorted(set(re.findall(r'(?:name|id)="(ol-[^"]+)"', page_html)))
+    looks_login = bool(re.search(r'name="ol-csrfToken"', page_html)) and not any(
+        "roject" in n for n in names
+    )
+    lines = ["Could not find the project list in the page."]
+    if looks_login or not names:
+        lines.append(
+            "The page looks like the login page — the cookie is missing or "
+            "expired. Grab a FRESH overleaf_session2 value and retry."
         )
-    content = re.search(r'\bcontent="([^"]*)"', meta.group(0))
-    if not content:
-        sys.exit("Found the projects tag but no content attribute — unexpected markup.")
-    raw = html.unescape(content.group(1))
-    try:
-        data = json.loads(raw)
-    except json.JSONDecodeError as exc:
-        sys.exit(f"Failed to parse the project JSON: {exc}")
-    return data if isinstance(data, list) else data.get("projects", [])
+    else:
+        lines.append("Overleaf's markup may have changed. The ol-* tags present are:")
+        lines.append("  " + ", ".join(names))
+        lines.append(
+            "Re-run with --debug (saves the page to automation/_work/"
+            "overleaf_debug.html) and share the tag names above."
+        )
+    sys.exit("\n".join(lines))
+
+
+def parse_projects(page_html: str) -> list[dict]:
+    for key in CANDIDATE_KEYS:
+        raw = _extract_json_blob(page_html, key)
+        if not raw:
+            continue
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError:
+            continue
+        projects = data.get("projects") if isinstance(data, dict) else data
+        if isinstance(projects, list):
+            return projects
+    _diagnose_and_exit(page_html)
+    return []  # unreachable; _diagnose_and_exit raises
 
 
 def clean_name(name: str) -> str:
@@ -104,6 +145,8 @@ def main() -> None:
     ap = argparse.ArgumentParser(description="Generate overleaf_projects.txt")
     ap.add_argument("--all", action="store_true",
                     help="include archived and trashed projects too")
+    ap.add_argument("--debug", action="store_true",
+                    help="save the fetched dashboard HTML for inspection")
     args = ap.parse_args()
 
     cookie = os.environ.get("OVERLEAF_SESSION", "").strip()
@@ -112,7 +155,13 @@ def main() -> None:
     if not cookie:
         sys.exit("No cookie provided.")
 
-    projects = parse_projects(fetch_projects_html(cookie))
+    page = fetch_projects_html(cookie)
+    if args.debug:
+        dbg = Path(__file__).resolve().parent / "_work" / "overleaf_debug.html"
+        dbg.parent.mkdir(parents=True, exist_ok=True)
+        dbg.write_text(page, encoding="utf-8")
+        print(f"Saved page to {dbg} ({len(page)} bytes)")
+    projects = parse_projects(page)
 
     rows: list[tuple[str, str]] = []
     skipped = 0
