@@ -51,11 +51,13 @@ jobs:
       - name: Open pull request
         uses: peter-evans/create-pull-request@v6
         with:
-          # Commit ONLY the post and its plots — never the gathered raw material
-          # (which may contain unpublished experiment data / draft prose).
-          add-paths: |
-            site/_posts/**
-            site/assets/weekly-reports/**
+          # Commit the generated post and any plots (both live under site/).
+          # Scoped to site/ so the gathered raw material in automation/_work/
+          # (unpublished experiment data / draft prose) is never committed — it's
+          # gitignored and outside this path anyway. Using the site/ directory
+          # rather than narrower globs avoids a fatal "pathspec did not match"
+          # when a quiet week produces no plots.
+          add-paths: site
           commit-message: "Weekly report draft (${{ steps.gather.outputs.week_tag }})"
           branch: "weekly-report/${{ steps.gather.outputs.week_tag }}"
           delete-branch: true
