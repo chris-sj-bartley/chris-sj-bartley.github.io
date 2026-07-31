@@ -32,11 +32,11 @@ jobs:
         run: pip install -r automation/requirements.txt
 
       - name: Install LaTeX toolchain (for rendering tagged figures)
+        # texlive-full so any package a paper uses (tipa, pgfplots, …) is present
+        # and we don't chase missing-package errors. poppler-utils gives pdftoppm.
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            texlive-latex-recommended texlive-latex-extra texlive-pictures \
-            texlive-fonts-recommended texlive-science lmodern poppler-utils
+          sudo apt-get install -y --no-install-recommends texlive-full poppler-utils
 
       - name: Gather the week's material, render figures, prepare the post
         id: gather
