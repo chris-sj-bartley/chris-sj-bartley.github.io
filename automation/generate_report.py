@@ -45,7 +45,8 @@ ASSETS_SUBDIR = "assets/weekly-reports"          # under site/, and under the UR
 GITHUB_USER = os.environ.get("GH_REPORT_USER", "chris-sj-bartley")
 GITHUB_TOKEN = os.environ.get("GH_REPORT_TOKEN", "")   # PAT with repo contents:read
 
-OVERLEAF_GIT_URL = os.environ.get("OVERLEAF_GIT_URL", "")   # https://git:<token>@git.overleaf.com/<id>
+OVERLEAF_TOKEN = os.environ.get("OVERLEAF_TOKEN", "")   # account-wide git token (secret)
+OVERLEAF_PROJECTS_FILE = REPO_ROOT / "automation" / "overleaf_projects.txt"  # committed list of IDs
 
 TITAN_REPORT_REPO = os.environ.get("TITAN_REPORT_REPO", "")  # git URL the Titan collector pushes to
 TITAN_REPORT_TOKEN = os.environ.get("TITAN_REPORT_TOKEN", "")  # PAT if that repo is private
@@ -140,14 +141,37 @@ def gather_github() -> str:
 
 # --------------------------------------------------------------------------- #
 # Source 2: Overleaf — what was written this week (git bridge)
+#
+# Overleaf's git token is account-wide (one token clones every project), but
+# there is no endpoint to list projects — so we keep a committed list of project
+# IDs in automation/overleaf_projects.txt and loop over it. Add one line there
+# when you create a new project. IDs are not secret; only OVERLEAF_TOKEN is.
 # --------------------------------------------------------------------------- #
-def gather_overleaf() -> str:
-    if not OVERLEAF_GIT_URL:
-        log("no OVERLEAF_GIT_URL; skipping Overleaf")
-        return ""
+def _overleaf_projects() -> list[tuple[str, str]]:
+    """Parse the project list -> [(project_id, label)]. Lines: `<id>  <label>`."""
+    items: list[tuple[str, str]] = []
+    if not OVERLEAF_PROJECTS_FILE.exists():
+        return items
+    for raw in OVERLEAF_PROJECTS_FILE.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        parts = line.split(None, 1)
+        pid = parts[0].rstrip("/").split("/")[-1]      # accept a bare id or a full URL
+        label = parts[1].strip() if len(parts) > 1 else pid
+        items.append((pid, label))
+    return items
+
+
+def _overleaf_one(project_id: str, label: str) -> str:
+    """Clone one project and summarise this week's .tex changes, or '' if none."""
+    url = f"https://git:{OVERLEAF_TOKEN}@git.overleaf.com/{project_id}"
     tmp = tempfile.mkdtemp(prefix="overleaf-")
     try:
-        run(["git", "clone", "--quiet", OVERLEAF_GIT_URL, tmp])
+        run(["git", "clone", "--quiet", url, tmp])
+        if not (Path(tmp) / ".git").exists():
+            log(f"Overleaf clone failed for {label} ({project_id})")
+            return ""
         commits = run(
             ["git", "log", f"--since={SINCE_ISO}", "--pretty=format:- %ad %s", "--date=short"],
             cwd=tmp,
@@ -163,17 +187,33 @@ def gather_overleaf() -> str:
                 for ln in diff.splitlines()
                 if ln.startswith("+") and not ln.startswith("+++")
             ]
-            added_prose = "\n".join(added)[:6000]  # bound the payload
-        parts = ["## Overleaf writing (LaTeX changes this week)"]
+            added_prose = "\n".join(added)[:4000]  # bound per-project payload
+        if not (commits or stat):
+            return ""  # no change this week -> omit this project
+        parts = [f"### {label}"]
         if commits:
             parts.append("Commits:\n" + commits)
         if stat:
             parts.append("Changed files:\n" + stat)
         if added_prose:
             parts.append("Lines added (prose the model may summarise):\n" + added_prose)
-        return "\n\n".join(parts) if len(parts) > 1 else ""
+        return "\n\n".join(parts)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
+
+
+def gather_overleaf() -> str:
+    if not OVERLEAF_TOKEN:
+        log("no OVERLEAF_TOKEN; skipping Overleaf")
+        return ""
+    projects = _overleaf_projects()
+    if not projects:
+        log("no projects in automation/overleaf_projects.txt; skipping Overleaf")
+        return ""
+    blocks = [b for b in (_overleaf_one(pid, label) for pid, label in projects) if b]
+    if not blocks:
+        return ""
+    return "## Overleaf writing (LaTeX changes this week)\n\n" + "\n\n".join(blocks)
 
 
 # --------------------------------------------------------------------------- #

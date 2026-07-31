@@ -49,7 +49,7 @@ secret**. Add:
 |--------|-----------|-----------|
 | `CLAUDE_CODE_OAUTH_TOKEN` | The token from `claude setup-token` (step 1). Draws on your Claude subscription. | **Yes** |
 | `GH_REPORT_TOKEN` | Fine-grained PAT with **Contents: read** across your repos (to list the week's commits/PRs). github.com → Settings → Developer settings → Fine-grained tokens. | Recommended |
-| `OVERLEAF_GIT_URL` | Your Overleaf project's git URL **with token embedded** — see step 4 | Optional |
+| `OVERLEAF_TOKEN` | Your account-wide Overleaf git authentication token (one token, all projects) — see step 4 | Optional |
 | `TITAN_REPORT_REPO` | git URL of the repo the Titan collector pushes to | Optional |
 | `TITAN_REPORT_TOKEN` | PAT with read access to that repo, **if it is private** | Only if private |
 
@@ -63,15 +63,21 @@ whatever is available. For a first smoke test you need only
 Actions to create and approve pull requests" → Save.** Without this the final
 step can't open the PR.
 
-### 4. Overleaf git URL
+### 4. Overleaf (multiple projects, account-wide token)
 
-Overleaf → your project → **Menu → Git**. You'll get a URL like
-`https://git.overleaf.com/<project-id>` and a git token. Combine them into the
-secret value:
+Overleaf's git token is **account-wide** — one token clones every project — but
+there is no API to list projects, so you maintain a short list of project IDs.
 
-```
-https://git:<your-overleaf-git-token>@git.overleaf.com/<project-id>
-```
+1. Get the token: Overleaf → **Account Settings → Git integration** (or any
+   project's **Menu → Git**) → generate/copy your **git authentication token**.
+   Add it as the secret **`OVERLEAF_TOKEN`**. (Just the token — no URL.)
+2. List the projects to report on in
+   [`overleaf_projects.txt`](overleaf_projects.txt), one per line
+   (`<project-id>  <label>`). The project ID is the last part of the project URL:
+   `https://www.overleaf.com/project/<project-id>`. Commit the file.
+3. **Adding a new project later:** add one line to `overleaf_projects.txt` and
+   commit. That's the only per-project step — the account token already covers it.
+   Projects with no changes in a given week are silently skipped.
 
 ### 5. Titan side
 

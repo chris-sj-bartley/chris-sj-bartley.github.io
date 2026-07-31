@@ -35,7 +35,7 @@ jobs:
         id: gather
         env:
           GH_REPORT_TOKEN: ${{ secrets.GH_REPORT_TOKEN }}
-          OVERLEAF_GIT_URL: ${{ secrets.OVERLEAF_GIT_URL }}
+          OVERLEAF_TOKEN: ${{ secrets.OVERLEAF_TOKEN }}
           TITAN_REPORT_REPO: ${{ secrets.TITAN_REPORT_REPO }}
           TITAN_REPORT_TOKEN: ${{ secrets.TITAN_REPORT_TOKEN }}
         run: python automation/generate_report.py

@@ -1,0 +1,20 @@
+# Overleaf projects to include in the weekly report.
+#
+# One project per line:   <project-id>   <friendly label>
+#
+# The project id is the last part of the Overleaf URL:
+#   https://www.overleaf.com/project/651a2f3c9b1d4e00XXXXXXXX
+#                                     ^^^^^^^^^^^^^^^^^^^^^^^^  <- this
+# The label is optional free text used as the section heading in the report.
+#
+# A full clone URL (https://git.overleaf.com/<id>) also works in place of the id.
+# Authentication uses the account-wide OVERLEAF_TOKEN secret — never put the token
+# in this file (it is committed to the repo). IDs are not sensitive.
+#
+# When you create a NEW Overleaf project you want reported on, add a line here and
+# commit. Unlisted projects are ignored; projects with no changes in the week are
+# silently skipped.
+#
+# Examples (delete these and add your own):
+# 651a2f3c9b1d4e0000000001   PhD thesis
+# 651a2f3c9b1d4e0000000002   Manx TTS paper (Interspeech 2026)
