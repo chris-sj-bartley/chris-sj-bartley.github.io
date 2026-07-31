@@ -2,17 +2,22 @@
 
 Every Friday a GitHub Action drafts a progress report in the classic
 (Steven-Pinker) prose style, pulling from three sources, and **opens a pull
-request**. Nothing is published until you review and merge it.
+request**. Nothing is published until you review and merge it. The drafting runs
+via the **Claude Code Action authenticated with your Claude subscription** (an
+OAuth token — not API billing, so no card or console credit is spent).
 
 ```
   TITAN (Thu cron)                    GITHUB ACTIONS (Fri 08:00 UTC)
-  weekly_collect.py  ── git push ──▶  generate_report.py
-   • scan results dir                  1. clone Titan report repo
-   • metrics + plots                   2. clone Overleaf (git bridge) → diff .tex
-   • report-YYYY-Www.md                3. GitHub API → week's commits & PRs
-                                       4. Claude (opus-4-8) → Pinker-style draft
-                                       5. write site/_posts/…-weekly-report-*.md
-                                       6. open PR  ──▶  you review & merge ──▶ Pages deploy
+  weekly_collect.py  ── git push ──▶  1. generate_report.py gathers:
+   • scan results dir                    • Titan report repo (experiments+plots)
+   • metrics + plots                     • Overleaf git bridge → diff .tex
+   • report-YYYY-Www.md                  • GitHub API → week's commits & PRs
+                                         → writes _work/raw-material.md + brief
+                                         → lays down the post shell in _posts/
+                                      2. Claude Code Action (subscription auth)
+                                         reads the brief → writes Pinker-style body
+                                      3. create-pull-request opens the PR
+                                         ──▶ you review & merge ──▶ Pages deploy
 ```
 
 The draft post is created with `crosspost: false`, so a weekly report never
@@ -22,23 +27,43 @@ propagates to the Gaelg AI blog unless you flip that to `true` while reviewing.
 
 ## One-time setup
 
-### 1. GitHub repository secrets
+### 1. Generate your Claude subscription token
+
+On your own machine, in the Claude Code terminal, run:
+
+```
+claude setup-token
+```
+
+This uses your active Claude Pro/Max subscription to mint a long-lived OAuth
+token for headless/CI use. Copy the token it prints — you'll paste it as a secret
+in the next step. (Re-run this if it ever expires and the Friday run starts
+failing on auth.)
+
+### 2. GitHub repository secrets
 
 In this repo: **Settings → Secrets and variables → Actions → New repository
 secret**. Add:
 
 | Secret | What it is | Required? |
 |--------|-----------|-----------|
-| `ANTHROPIC_API_KEY` | Claude API key from console.anthropic.com | **Yes** |
-| `GH_REPORT_TOKEN` | Fine-grained PAT with **read** access to your repos' contents (so it can list the week's commits/PRs). Create at github.com → Settings → Developer settings → Fine-grained tokens. | Recommended |
-| `OVERLEAF_GIT_URL` | Your Overleaf project's git URL **with token embedded** — see below | Optional |
+| `CLAUDE_CODE_OAUTH_TOKEN` | The token from `claude setup-token` (step 1). Draws on your Claude subscription. | **Yes** |
+| `GH_REPORT_TOKEN` | Fine-grained PAT with **Contents: read** across your repos (to list the week's commits/PRs). github.com → Settings → Developer settings → Fine-grained tokens. | Recommended |
+| `OVERLEAF_GIT_URL` | Your Overleaf project's git URL **with token embedded** — see step 4 | Optional |
 | `TITAN_REPORT_REPO` | git URL of the repo the Titan collector pushes to | Optional |
 | `TITAN_REPORT_TOKEN` | PAT with read access to that repo, **if it is private** | Only if private |
 
 Any optional source you leave unset is simply skipped — the report is built from
-whatever is available.
+whatever is available. For a first smoke test you need only
+`CLAUDE_CODE_OAUTH_TOKEN`.
 
-### 2. Overleaf git URL
+### 3. Allow Actions to open PRs (one setting)
+
+**Settings → Actions → General → Workflow permissions →** tick **"Allow GitHub
+Actions to create and approve pull requests" → Save.** Without this the final
+step can't open the PR.
+
+### 4. Overleaf git URL
 
 Overleaf → your project → **Menu → Git**. You'll get a URL like
 `https://git.overleaf.com/<project-id>` and a git token. Combine them into the
@@ -48,7 +73,7 @@ secret value:
 https://git:<your-overleaf-git-token>@git.overleaf.com/<project-id>
 ```
 
-### 3. Titan side
+### 5. Titan side
 
 1. Create a **private** git repo for the reports, e.g. `weekly-reports`, and set
    `TITAN_REPORT_REPO` (and `TITAN_REPORT_TOKEN`) to it.
@@ -64,10 +89,12 @@ https://git:<your-overleaf-git-token>@git.overleaf.com/<project-id>
        --report-repo /path/to/weekly-reports >> collect.log 2>&1
    ```
 
-### 4. Test it before trusting the schedule
+### 6. Test it before trusting the schedule
 
 Go to **Actions → Weekly research report → Run workflow** (the
 `workflow_dispatch` trigger). It runs immediately and opens a PR you can inspect.
+With only `CLAUDE_CODE_OAUTH_TOKEN` set, the report will be thin — it'll honestly
+say it was a quiet week — but a green run that opens a PR proves the pipeline.
 
 ---
 
@@ -77,15 +104,17 @@ Go to **Actions → Weekly research report → Run workflow** (the
   [`.github/workflows/weekly-report.yml`](../.github/workflows/weekly-report.yml).
   It's UTC.
 - **Window:** set repo variable/secret `REPORT_WINDOW_DAYS` (default 7).
-- **Model or style:** `REPORT_MODEL` env, or edit `PINKER_SYSTEM_PROMPT` in
+- **Model:** change `--model` in the `claude_args` line of the workflow (e.g.
+  `claude-sonnet-5` to spend less of your subscription usage per run).
+- **Style/accuracy rules:** edit `PINKER_STYLE` / `ACCURACY_RULES` in
   [`generate_report.py`](generate_report.py).
 - **Local dry run:** with the same env vars set, `python automation/generate_report.py`
-  writes the post into `site/_posts/` without opening a PR.
+  gathers the material and writes the post shell + brief under `automation/_work/`,
+  without drafting or opening a PR.
 
 ## Why a PR and not auto-publish
 
 An LLM turning commit logs and metrics into prose will occasionally overstate a
-result or infer a narrative that didn't happen. The system prompt forbids
-inventing numbers, but on a public academic blog under your name the right
-safeguard is a human read. The PR *is* that gate — merging is the publish action.
-```
+result or infer a narrative that didn't happen. The brief forbids inventing
+numbers, but on a public academic blog under your name the right safeguard is a
+human read. The PR *is* that gate — merging is the publish action.
