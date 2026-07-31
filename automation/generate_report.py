@@ -292,30 +292,29 @@ def _extract_tagged_figures(tex_text: str) -> list[tuple[str, str]]:
     return figs
 
 
-def _png_ok(path: Path) -> bool:
-    """Valid PNG with sensible dimensions, and (if Pillow is present) not blank."""
+def _png_check(path: Path) -> tuple[bool, str]:
+    """(valid, note). Reject only clearly-broken PNGs (not a PNG, or tiny);
+    the drafting model does the authoritative visual check for blank/clipped."""
     try:
         head = path.read_bytes()[:24]
     except OSError:
-        return False
+        return False, "unreadable"
     if len(head) < 24 or head[:8] != b"\x89PNG\r\n\x1a\n":
-        return False
+        return False, "not a PNG"
     width = int.from_bytes(head[16:20], "big")
     height = int.from_bytes(head[20:24], "big")
     if width < 40 or height < 40:
-        return False
+        return False, f"too small ({width}x{height})"
+    note = f"{width}x{height}"
     try:
-        from PIL import Image  # optional; the model does the real visual check too
-    except ImportError:
-        return True
-    try:
+        from PIL import Image
         img = Image.open(path).convert("L")
         hist = img.histogram()
         total = sum(hist) or 1
-        near_white = sum(hist[250:])           # near-white pixels
-        return (total - near_white) / total > 0.001
+        note += f", non-white {(total - sum(hist[250:])) / total:.4f}"
     except Exception:  # noqa: BLE001
-        return True
+        pass
+    return True, note
 
 
 def _all_tex_files(repo_dir: str) -> list[Path]:
@@ -380,8 +379,9 @@ def _render_figures(repo_dir: str, label: str) -> list[dict]:
             png_path = ASSETS_DIR / f"{stem}.png"
             run(["pdftoppm", "-png", "-r", "200", "-singlefile",
                  str(pdf_path), str(png_path.with_suffix(""))])
-            if not _png_ok(png_path):
-                log(f"figure PNG failed validation, discarding: {label} #{fig_index}")
+            valid, note = _png_check(png_path)
+            log(f"figure PNG {label} #{fig_index}: {note}")
+            if not valid:
                 png_path.unlink(missing_ok=True)
                 continue
             rendered.append({
