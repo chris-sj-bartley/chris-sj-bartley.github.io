@@ -46,7 +46,9 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ github.token }}
           prompt: "Read automation/_work/report-brief.md and follow its instructions exactly."
-          claude_args: "--model claude-opus-4-8 --max-turns 15"
+          # Whitelist the file tools Claude needs — without this the action denies
+          # Edit/Write and the post body is never drafted (permission_denials).
+          claude_args: "--model claude-opus-4-8 --max-turns 15 --allowedTools Read,Edit,Write,Glob,Grep"
 
       - name: Open pull request
         uses: peter-evans/create-pull-request@v6
