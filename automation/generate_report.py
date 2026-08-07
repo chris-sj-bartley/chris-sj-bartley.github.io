@@ -32,6 +32,8 @@ automation/README.md.
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
+import json
 import os
 import re
 import shutil
@@ -67,6 +69,31 @@ SINCE = TODAY - dt.timedelta(days=WEEK_DAYS)
 SINCE_ISO = SINCE.isoformat()
 ISO_YEAR, ISO_WEEK, _ = TODAY.isocalendar()
 WEEK_TAG = f"{ISO_YEAR}-W{ISO_WEEK:02d}"
+
+# --------------------------------------------------------------------------- #
+# Persisted state (restored/saved by the workflow cache). Lets us report what
+# changed SINCE THE LAST REPORT rather than over a fixed, unreliable git window:
+#   * last_run  -> GitHub window start (nothing gets re-reported next week)
+#   * overleaf  -> {project_id: {relpath: sha256}} to diff Overleaf .tex files,
+#                  which is essential because the Overleaf git bridge exposes no
+#                  usable history to diff against.
+# --------------------------------------------------------------------------- #
+STATE_DIR = REPO_ROOT / "automation" / "_state"
+NOW_ISO = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _load_state() -> dict:
+    try:
+        return json.loads((STATE_DIR / "state.json").read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001 - no/empty/corrupt state => cold start
+        return {}
+
+
+STATE = _load_state()
+LAST_RUN = STATE.get("last_run")
+# GitHub "since": the last report, or fall back to the fixed window on cold start.
+GH_SINCE = LAST_RUN or f"{SINCE_ISO}T00:00:00Z"
+NEW_OVERLEAF_HASHES: dict[str, dict[str, str]] = {}
 
 ASSETS_DIR = SITE_DIR / ASSETS_SUBDIR / WEEK_TAG            # where PNGs are written
 ASSETS_URL = f"/{ASSETS_SUBDIR}/{WEEK_TAG}"                 # how the site references them
@@ -123,7 +150,7 @@ def _gh_repo_file_changes(requests, headers, full_name: str) -> str:
         return ""
     r = requests.get(
         f"https://api.github.com/repos/{owner}/{repo}/commits",
-        params={"author": GITHUB_USER, "since": f"{SINCE_ISO}T00:00:00Z", "per_page": 100},
+        params={"author": GITHUB_USER, "since": GH_SINCE, "per_page": 100},
         headers=headers, timeout=30,
     )
     if not r.ok or not r.json():
@@ -183,7 +210,7 @@ def gather_github() -> str:
     lines: list[str] = []
     active_repos: list[str] = []
 
-    q = f"author:{GITHUB_USER} author-date:>={SINCE_ISO}"
+    q = f"author:{GITHUB_USER} author-date:>={GH_SINCE}"
     try:
         r = requests.get(
             "https://api.github.com/search/commits",
@@ -202,7 +229,7 @@ def gather_github() -> str:
     except Exception as exc:  # noqa: BLE001
         log(f"GitHub commit search errored: {exc}")
 
-    q_pr = f"author:{GITHUB_USER} type:pr updated:>={SINCE_ISO}"
+    q_pr = f"author:{GITHUB_USER} type:pr updated:>={GH_SINCE}"
     try:
         r = requests.get(
             "https://api.github.com/search/issues",
@@ -315,7 +342,8 @@ def _collect_tagged_figures(repo_dir: str, label: str) -> list[dict]:
 
 
 def _overleaf_one(project_id: str, label: str) -> tuple[str, list[dict]]:
-    """Summarise one project's weekly .tex changes and render its tagged figures."""
+    """Detect a project's .tex changes since the last report (by content hash,
+    since the git bridge has no usable history) and render its tagged figures."""
     url = f"https://git:{OVERLEAF_TOKEN}@git.overleaf.com/{project_id}"
     tmp = tempfile.mkdtemp(prefix="overleaf-")
     try:
@@ -323,34 +351,34 @@ def _overleaf_one(project_id: str, label: str) -> tuple[str, list[dict]]:
         if not (Path(tmp) / ".git").exists():
             log(f"Overleaf clone failed for {label} ({project_id})")
             return "", []
-        # Overleaf's git bridge exposes little/no history, so a weekly diff is
-        # only trustworthy when the project genuinely has a commit before the
-        # window. When it doesn't, skip the writing diff (rather than treat the
-        # whole project as rewritten). Figures are handled separately, by tag.
-        base = out(["git", "rev-list", "-1", f"--before={SINCE_ISO}", "HEAD"], cwd=tmp).strip()
-        stat = ""
-        added_prose = ""
-        if base:
-            stat = out(["git", "diff", "--stat", base, "HEAD", "--", "*.tex"], cwd=tmp).strip()
-            diff = out(["git", "diff", base, "HEAD", "--", "*.tex"], cwd=tmp)
-            added = [ln[1:].strip() for ln in diff.splitlines()
-                     if ln.startswith("+") and not ln.startswith("+++")]
-            added_prose = "\n".join(added)[:5000]
+
+        prev = STATE.get("overleaf", {}).get(project_id)  # {relpath: sha} or None
+        cur_hashes: dict[str, str] = {}
+        changes: list[tuple[str, str, str]] = []  # (relpath, kind, content)
+        for tex in sorted(Path(tmp).rglob("*.tex")):
+            rel = tex.relative_to(tmp).as_posix()
+            content = tex.read_text(encoding="utf-8", errors="replace")
+            digest = hashlib.sha256(content.encode("utf-8", "replace")).hexdigest()
+            cur_hashes[rel] = digest
+            if prev is not None and prev.get(rel) != digest:
+                kind = "changed" if rel in prev else "new"
+                changes.append((rel, kind, content[:3500]))
+        NEW_OVERLEAF_HASHES[project_id] = cur_hashes
+        if prev is None:
+            log(f"Overleaf '{label}': baselined (first run; no diff reported)")
 
         figures = _collect_tagged_figures(tmp, label)
 
-        if not (added_prose or figures):
+        if not (changes or figures):
             return "", figures
         parts = [f"### {label}"]
-        if stat:
-            parts.append("Changed files:\n" + stat)
-        if added_prose:
+        for rel, kind, content in changes[:8]:
             parts.append(
-                "Lines added (prose + tables the model may summarise; reproduce "
-                "changed results tables as Markdown):\n" + added_prose
+                f"**{rel}** ({kind} since last report; reproduce any results "
+                f"tables as Markdown, summarise prose):\n```latex\n{content}\n```"
             )
-        if figures and not added_prose:
-            parts.append("(A figure tagged for the report was rendered from this paper.)")
+        if figures and not changes:
+            parts.append("(A figure tagged for the report was drawn from this paper.)")
         return "\n\n".join(parts), figures
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
@@ -448,9 +476,11 @@ def write_brief(post_rel_path: str, figures: list[dict]) -> Path:
     brief = f"""\
 # Task: draft this week's research progress report
 
-Read the gathered material in `automation/_work/raw-material.md`. It covers the
-week {SINCE_ISO} to {TODAY.isoformat()} ({WEEK_TAG}): writing from Overleaf and
-code + results from GitHub.
+Read the gathered material in `automation/_work/raw-material.md`. It covers what
+changed since the last report ({LAST_RUN or "the start of the window"}) up to
+{TODAY.isoformat()} ({WEEK_TAG}): writing from Overleaf and code + results from
+GitHub. Report only that period's work; if a source shows nothing new, say so
+rather than restating older work.
 
 Then edit the file `{post_rel_path}`: replace the single placeholder line
 `{BODY_PLACEHOLDER}` (directly beneath the YAML front matter) with the drafted
@@ -514,6 +544,17 @@ def main() -> None:
     post_rel = post_path.relative_to(REPO_ROOT).as_posix()
     write_brief(post_rel, figures)
     log(f"prepared {post_rel}; {len(figures)} figure(s) rendered")
+
+    # Persist state for next run's "since last report" diffing. Keep the previous
+    # Overleaf hashes if we didn't gather Overleaf this run (so we don't wipe the
+    # baseline). The workflow caches automation/_state between runs.
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    new_state = {
+        "last_run": NOW_ISO,
+        "overleaf": NEW_OVERLEAF_HASHES if NEW_OVERLEAF_HASHES else STATE.get("overleaf", {}),
+    }
+    (STATE_DIR / "state.json").write_text(json.dumps(new_state, indent=1), encoding="utf-8")
+    log(f"state saved (last_run={NOW_ISO}, {len(new_state['overleaf'])} Overleaf projects)")
 
     if os.environ.get("GITHUB_OUTPUT"):
         with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as fh:

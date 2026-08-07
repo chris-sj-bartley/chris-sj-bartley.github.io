@@ -38,12 +38,29 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends graphviz
 
+      - name: Restore report state
+        # Persisted last-run time + Overleaf content hashes, so the report covers
+        # what changed SINCE THE LAST REPORT (not a fixed, unreliable git window).
+        uses: actions/cache/restore@v4
+        with:
+          path: automation/_state
+          key: report-state-${{ github.run_id }}
+          restore-keys: |
+            report-state-
+
       - name: Gather the week's material, render figures, prepare the post
         id: gather
         env:
           GH_REPORT_TOKEN: ${{ secrets.GH_REPORT_TOKEN }}
           OVERLEAF_TOKEN: ${{ secrets.OVERLEAF_TOKEN }}
         run: python automation/generate_report.py
+
+      - name: Save report state
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: automation/_state
+          key: report-state-${{ github.run_id }}
 
       - name: Draft the report body with Claude (subscription auth)
         uses: anthropics/claude-code-action@v1

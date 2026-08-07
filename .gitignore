@@ -7,3 +7,4 @@ vendor/
 .DS_Store
 .claude/settings.local.json
 automation/_work/
+automation/_state/
