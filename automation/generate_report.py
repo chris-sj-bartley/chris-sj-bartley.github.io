@@ -260,12 +260,13 @@ def gather_github() -> str:
         return ""
     parts = []
     if lines:
-        parts.append("## GitHub activity (commits & PRs this week)\n" + "\n".join(lines))
+        parts.append("## Code and experiment activity (recent)\n" + "\n".join(lines))
     if file_sections:
         parts.append(
-            "## GitHub file changes this week (results, plans, notes)\n"
-            "Diffs of pertinent files. Treat results files (.json/.csv) as data, "
-            "and plan/notes .md files as intent/next-steps.\n\n"
+            "## Results, plans, and notes (recent changes)\n"
+            "Treat results files (.json/.csv) as data and plan/notes files as "
+            "intent/next-steps. These are inputs only — never mention them or "
+            "their filenames in the report.\n\n"
             + "\n\n".join(file_sections)
         )
     return "\n\n".join(parts)
@@ -372,13 +373,15 @@ def _overleaf_one(project_id: str, label: str) -> tuple[str, list[dict]]:
         if not (changes or figures):
             return "", figures
         parts = [f"### {label}"]
-        for rel, kind, content in changes[:8]:
+        for _rel, kind, content in changes[:8]:
             parts.append(
-                f"**{rel}** ({kind} since last report; reproduce any results "
-                f"tables as Markdown, summarise prose):\n```latex\n{content}\n```"
+                f"{kind.capitalize()} content in this paper (reproduce any results "
+                f"tables as Markdown; summarise the prose in your own words — do "
+                f"NOT mention filenames or that it is 'new/changed'):\n"
+                f"```latex\n{content}\n```"
             )
         if figures and not changes:
-            parts.append("(A figure tagged for the report was drawn from this paper.)")
+            parts.append("(This paper has a figure to include.)")
         return "\n\n".join(parts), figures
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
@@ -401,7 +404,7 @@ def gather_overleaf() -> tuple[str, list[dict]]:
         figures.extend(figs)
     if not blocks:
         return "", figures
-    return "## Overleaf writing (LaTeX changes this week)\n\n" + "\n\n".join(blocks), figures
+    return "## Paper / thesis writing (recent changes)\n\n" + "\n\n".join(blocks), figures
 
 
 # --------------------------------------------------------------------------- #
@@ -410,10 +413,29 @@ def gather_overleaf() -> tuple[str, list[dict]]:
 PINKER_STYLE = """\
 Write in the first person ("I"). Use the classic prose style of Steven Pinker's \
 *The Sense of Style*: clear, concrete, and confident.
-- Treat prose as a window onto the world: show what happened; don't narrate the \
-  act of reporting. No metadiscourse.
-- Prefer concrete nouns and strong verbs. Name the actual experiment, model, \
-  metric, or file.
+
+AUDIENCE: Write for an intelligent reader who knows NOTHING about how you work, \
+what tools or platforms you use, or what you are building. Explain the research \
+itself so it stands on its own.
+
+DO NOT reference how any information was obtained or where it lives. Never name \
+or allude to your tools, platforms, or files-as-sources. Banned: "Overleaf", \
+"GitHub", "the repo/repository", "the commit(s)", "the diff", "the log", "the \
+material", "this week's material", "the data shows", "the notes say", "the file \
+X", "a file called X", "I added/tagged a file". Report the work, not the \
+artefacts that record it. Rewrite provenance into substance:
+- NOT "Overleaf shows I revised the intro" → "I revised the introduction."
+- NOT "the results file gives WER 25%" → "the model reached 25% WER."
+- Refer to a paper by its topic or venue ("the ICASSP paper on X"), never as \
+  "the Overleaf project" or "the repo".
+- When you include a figure, present it as a figure of the work; do NOT say it \
+  was drawn, rendered, generated, or tagged.
+
+Also:
+- Treat prose as a window onto the world: show what happened; no metadiscourse \
+  ("In this report…", "It is worth noting…").
+- Prefer concrete nouns and strong verbs. Name the actual experiment, model, or \
+  metric (but not the file it lives in).
 - Explain each result to an intelligent reader who is NOT a speech-technology \
   specialist — define a term the first time it matters, then move on.
 - Be economical; coherent paragraphs, not bullet soup (a short list for concrete \
@@ -422,12 +444,11 @@ Write in the first person ("I"). Use the classic prose style of Steven Pinker's 
 Structure as Markdown with these sections, OMITTING any with no material:
 1. A short opening summary (2-4 sentences).
 2. **Experiments** — what was run and why.
-3. **Results** — what the numbers showed. If the Overleaf changes include results \
-   tables, reproduce the changed table(s) as clean Markdown tables using the \
-   actual values from the material. Embed verified figures (see below).
-4. **Writing** — progress on papers/thesis, from the Overleaf changes.
-5. **Next** (optional) — planned next steps, ONLY if the material (e.g. plan or
-   notes .md files from GitHub) actually states them. Don't speculate."""
+3. **Results** — what the numbers showed. Reproduce any results tables as clean \
+   Markdown tables using the actual values. Embed verified figures (see below).
+4. **Writing** — progress on the papers/thesis.
+5. **Next** (optional) — planned next steps, ONLY if they are actually stated in \
+   the material. Don't speculate."""
 
 ACCURACY_RULES = """\
 CRITICAL ACCURACY RULES:
