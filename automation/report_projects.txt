@@ -1,0 +1,22 @@
+# Project registry for the weekly report.
+#
+# Each line maps a research project on your site to the sources that feed it, so
+# the report can be organised into one section per project, each linked to its
+# page at /projects/. Format (fields separated by " | "):
+#
+#   Display name | /projects/#anchor | pattern, pattern, ...
+#
+# The patterns are matched case-insensitively as substrings against BOTH the
+# GitHub repository full name (e.g. "chris-sj-bartley/vc-experiments") and the
+# Overleaf project label from overleaf_projects.txt (e.g. "ICASSP 2027"). The
+# first project with any matching pattern wins, so order more specific projects
+# first. Anything that matches nothing is reported under a generic "Other"
+# section with no link. Edit freely — a new repo or paper just needs a pattern
+# here (or a new line) to land in the right project section.
+#
+# The anchor is the project's heading on /projects/ lower-cased with spaces as
+# hyphens (e.g. "## Domain Adaptation" -> /projects/#domain-adaptation).
+
+Gaelg AI | /projects/#gaelg-ai | gaelgai, gaelg-ai, gaelg
+Minimally Supervised Endangered Language ASR | /projects/#minimally-supervised-endangered-language-asr | interspeech, endangered, short-form, shortform, bootstrap, spoken-dictionary, kaldi
+Domain Adaptation | /projects/#domain-adaptation | icassp, sub-utterance, subutterance, voice-conversion, voiceconversion, diffvc, grad-vc, vc_models, vc-models, pair-corpora, spontaneous

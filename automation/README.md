@@ -12,11 +12,13 @@ OAuth token — not API billing, so no card or console credit is spent).
      • GitHub API → week's commits, PRs, results
      • Overleaf git bridge → diff .tex (writing + results tables)
      • extracts figures tagged %@report (their LaTeX source) for the model
+     • groups everything by research project (report_projects.txt)
      → writes _work/raw-material.md + brief; lays down the post shell in _posts/
-  2. Claude Code Action (subscription auth): reads the brief; for each tagged
-     figure, understands the TikZ at a high level and DRAWS a clean PNG
-     (graphviz/matplotlib), views it, and embeds it only if it reads clearly;
-     writes the Pinker-style body
+  2. Claude Code Action (subscription auth): reads the brief; writes the
+     Pinker-style body as ONE section per project, each heading linked to its
+     /projects/ page; for each tagged figure, understands the TikZ at a high
+     level and DRAWS a clean PNG (graphviz/matplotlib), views it, and embeds it
+     in that project's section only if it reads clearly
   3. create-pull-request opens the PR  ──▶ you review & merge ──▶ Pages deploy
 ```
 
@@ -108,7 +110,27 @@ Markdown from the `.tex`. **Figures** are drawn only when you opt each one in:
 
 Nothing to configure beyond the `%@report` tags.
 
-### 6. Test it before trusting the schedule
+### 6. Project sections (recommended)
+
+The report is organised into **one section per research project**, and each
+section's heading links to that project's page on `/projects/`. The mapping from
+sources to projects lives in
+[`report_projects.txt`](report_projects.txt), one project per line:
+
+```
+Display name | /projects/#anchor | pattern, pattern, ...
+```
+
+Each pattern is matched (case-insensitively, as a substring) against the GitHub
+repository name *and* the Overleaf project label, so a repo like
+`…/vc-experiments` or an Overleaf project labelled `ICASSP 2027` both land in the
+same section. The `#anchor` is the project's heading on `/projects/`, lower-cased
+with spaces as hyphens. Anything matching no project is reported under a generic
+**Other** section with no link. Adding a new repo or paper to a project is a
+one-line edit here (or a new line for a brand-new project — remember to add the
+matching heading to [`site/projects.md`](../site/projects.md)).
+
+### 7. Test it before trusting the schedule
 
 Go to **Actions → Weekly research report → Run workflow** (the
 `workflow_dispatch` trigger). It runs immediately and opens a PR you can inspect.

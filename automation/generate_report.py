@@ -57,6 +57,11 @@ GITHUB_TOKEN = os.environ.get("GH_REPORT_TOKEN", "")   # PAT with repo contents:
 OVERLEAF_TOKEN = os.environ.get("OVERLEAF_TOKEN", "")   # account-wide git token (secret)
 OVERLEAF_PROJECTS_FILE = REPO_ROOT / "automation" / "overleaf_projects.txt"  # committed list of IDs
 
+# Maps sources (GitHub repos, Overleaf project labels) to the research projects
+# on the site, so the report is grouped into per-project sections that each link
+# to their /projects/ page. See automation/report_projects.txt for the format.
+REPORT_PROJECTS_FILE = REPO_ROOT / "automation" / "report_projects.txt"
+
 # Mark a figure for the report by putting this comment on its own line directly
 # above \begin{figure}. Only tagged figures are rendered.
 FIGURE_TAG = os.environ.get("REPORT_FIGURE_TAG", "%@report")
@@ -119,6 +124,49 @@ def run(cmd: list[str], cwd: str | None = None, timeout: int = 180) -> subproces
 
 def out(cmd: list[str], cwd: str | None = None) -> str:
     return run(cmd, cwd=cwd).stdout
+
+
+# --------------------------------------------------------------------------- #
+# Project registry: map each source (a GitHub repo or an Overleaf label) to a
+# research project on the site, so the report groups work per project and links
+# each section to its /projects/ page.
+# --------------------------------------------------------------------------- #
+OTHER_PROJECT = "Other"  # bucket for sources matching no registered project
+
+
+def _load_report_projects() -> list[dict]:
+    projs: list[dict] = []
+    if not REPORT_PROJECTS_FILE.exists():
+        return projs
+    for raw in REPORT_PROJECTS_FILE.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        parts = [p.strip() for p in line.split("|")]
+        if len(parts) < 3:
+            continue
+        name, url, pats = parts[0], parts[1], parts[2]
+        patterns = [p.strip().lower() for p in pats.split(",") if p.strip()]
+        if name and patterns:
+            projs.append({"name": name, "url": url, "patterns": patterns})
+    return projs
+
+
+REPORT_PROJECTS = _load_report_projects()
+
+
+def _classify(*texts: str) -> dict | None:
+    """Return the first registered project whose patterns match any given text
+    (a repo full name and/or an Overleaf label), or None if nothing matches."""
+    hay = " ".join(t for t in texts if t).lower()
+    for proj in REPORT_PROJECTS:
+        if any(pat in hay for pat in proj["patterns"]):
+            return proj
+    return None
+
+
+def _proj_name(proj: dict | None) -> str:
+    return proj["name"] if proj else OTHER_PROJECT
 
 
 # --------------------------------------------------------------------------- #
@@ -192,22 +240,32 @@ def _gh_repo_file_changes(requests, headers, full_name: str) -> str:
     return "\n\n".join(blocks)
 
 
-def gather_github() -> str:
+def _gh_repo_from_pr(item: dict) -> str:
+    """Derive 'owner/repo' from a search/issues (PR) item's repository_url."""
+    url = item.get("repository_url", "")
+    marker = "/repos/"
+    return url.split(marker, 1)[1] if marker in url else ""
+
+
+def gather_github() -> list[dict]:
+    """Return project-tagged sections: [{proj, cat, text}]. cat is 'activity'
+    (commits + PRs) or 'files' (diffs of results/plan/notes files)."""
     if not GITHUB_TOKEN:
         log("no GH_REPORT_TOKEN; skipping GitHub")
-        return ""
+        return []
     try:
         import requests
     except ImportError:
         log("requests not installed; skipping GitHub")
-        return ""
+        return []
 
     headers = {
         "Authorization": f"Bearer {GITHUB_TOKEN}",
         "Accept": "application/vnd.github+json",
         "X-GitHub-Api-Version": "2022-11-28",
     }
-    lines: list[str] = []
+    repo_commits: dict[str, list[str]] = {}
+    repo_prs: dict[str, list[str]] = {}
     active_repos: list[str] = []
 
     q = f"author:{GITHUB_USER} author-date:>={GH_SINCE}"
@@ -223,7 +281,7 @@ def gather_github() -> str:
                 if repo not in active_repos:
                     active_repos.append(repo)
                 msg = (item.get("commit", {}).get("message", "") or "").splitlines()[0]
-                lines.append(f"- [{repo}] {msg}")
+                repo_commits.setdefault(repo, []).append(f"- {msg}")
         else:
             log(f"GitHub commit search failed: {r.status_code} {r.text[:200]}")
     except Exception as exc:  # noqa: BLE001
@@ -238,14 +296,17 @@ def gather_github() -> str:
         )
         if r.ok:
             for item in r.json().get("items", []):
+                repo = _gh_repo_from_pr(item)
                 state = "merged" if item.get("pull_request", {}).get("merged_at") else item.get("state", "")
-                lines.append(f"- PR ({state}): {item.get('title', '')} — {item.get('html_url', '')}")
+                repo_prs.setdefault(repo, []).append(
+                    f"- PR ({state}): {item.get('title', '')} — {item.get('html_url', '')}"
+                )
     except Exception as exc:  # noqa: BLE001
         log(f"GitHub PR search errored: {exc}")
 
     # Pull the actual diffs of pertinent files (results + plan/notes) per repo,
     # up to a total budget so the drafter gets substance, not noise.
-    file_sections: list[str] = []
+    repo_files: dict[str, str] = {}
     budget = GH_MAX_TOTAL
     for repo in active_repos:
         if budget <= 0:
@@ -254,22 +315,30 @@ def gather_github() -> str:
         if chunk:
             chunk = chunk[:budget]
             budget -= len(chunk)
-            file_sections.append(chunk)
+            repo_files[repo] = chunk
 
-    if not lines and not file_sections:
-        return ""
-    parts = []
-    if lines:
-        parts.append("## Code and experiment activity (recent)\n" + "\n".join(lines))
-    if file_sections:
-        parts.append(
-            "## Results, plans, and notes (recent changes)\n"
-            "Treat results files (.json/.csv) as data and plan/notes files as "
-            "intent/next-steps. These are inputs only — never mention them or "
-            "their filenames in the report.\n\n"
-            + "\n\n".join(file_sections)
-        )
-    return "\n\n".join(parts)
+    # Group everything by the project each repo maps to.
+    all_repos = list(dict.fromkeys(active_repos + list(repo_prs) + list(repo_files)))
+    groups: dict[str, dict] = {}
+    for repo in all_repos:
+        proj = _classify(repo)
+        key = _proj_name(proj)
+        g = groups.setdefault(key, {"proj": proj, "activity": [], "files": []})
+        # Prefix each activity line with the repo so multi-repo projects stay legible.
+        for ln in repo_commits.get(repo, []) + repo_prs.get(repo, []):
+            g["activity"].append(f"[{repo}] {ln[2:]}" if ln.startswith("- ") else ln)
+        if repo_files.get(repo):
+            g["files"].append(repo_files[repo])
+
+    sections: list[dict] = []
+    for g in groups.values():
+        if g["activity"]:
+            sections.append({"proj": g["proj"], "cat": "activity",
+                             "text": "\n".join(f"- {a}" for a in g["activity"])})
+        if g["files"]:
+            sections.append({"proj": g["proj"], "cat": "files",
+                             "text": "\n\n".join(g["files"])})
+    return sections
 
 
 # --------------------------------------------------------------------------- #
@@ -320,6 +389,7 @@ def _collect_tagged_figures(repo_dir: str, label: str) -> list[dict]:
     idx = 0
     slug = re.sub(r"[^a-z0-9]+", "-", label.lower()).strip("-") or "fig"
     fig_dir = WORK_DIR / "figures"
+    proj = _classify(label)
     for tex_path in Path(repo_dir).rglob("*.tex"):
         try:
             text = tex_path.read_text(encoding="utf-8", errors="replace")
@@ -333,6 +403,8 @@ def _collect_tagged_figures(repo_dir: str, label: str) -> list[dict]:
             (fig_dir / f"{stem}.tex").write_text(header + block, encoding="utf-8")
             figs.append({
                 "project": label,
+                "proj_name": _proj_name(proj),
+                "proj_url": proj["url"] if proj else "",
                 "caption": caption,
                 "source": f"automation/_work/figures/{stem}.tex",
                 "disk": f"site{ASSETS_URL}/{stem}.png",
@@ -387,24 +459,24 @@ def _overleaf_one(project_id: str, label: str) -> tuple[str, list[dict]]:
         shutil.rmtree(tmp, ignore_errors=True)
 
 
-def gather_overleaf() -> tuple[str, list[dict]]:
+def gather_overleaf() -> tuple[list[dict], list[dict]]:
+    """Return (sections, figures). Each writing section is tagged with the
+    project its Overleaf label maps to."""
     if not OVERLEAF_TOKEN:
         log("no OVERLEAF_TOKEN; skipping Overleaf")
-        return "", []
+        return [], []
     projects = _overleaf_projects()
     if not projects:
         log("no projects in automation/overleaf_projects.txt; skipping Overleaf")
-        return "", []
-    blocks: list[str] = []
+        return [], []
+    sections: list[dict] = []
     figures: list[dict] = []
     for pid, label in projects:
         text, figs = _overleaf_one(pid, label)
         if text:
-            blocks.append(text)
+            sections.append({"proj": _classify(label), "cat": "writing", "text": text})
         figures.extend(figs)
-    if not blocks:
-        return "", figures
-    return "## Paper / thesis writing (recent changes)\n\n" + "\n\n".join(blocks), figures
+    return sections, figures
 
 
 # --------------------------------------------------------------------------- #
@@ -441,14 +513,23 @@ Also:
 - Be economical; coherent paragraphs, not bullet soup (a short list for concrete \
   results is fine).
 
-Structure as Markdown with these sections, OMITTING any with no material:
-1. A short opening summary (2-4 sentences).
-2. **Experiments** — what was run and why.
-3. **Results** — what the numbers showed. Reproduce any results tables as clean \
-   Markdown tables using the actual values. Embed verified figures (see below).
-4. **Writing** — progress on the papers/thesis.
-5. **Next** (optional) — planned next steps, ONLY if they are actually stated in \
-   the material. Don't speculate."""
+STRUCTURE — one section per project. The material is grouped under `=== PROJECT: \
+<name> ===` markers, each giving a link to that project's page:
+- Optionally open with a 1-2 sentence summary across all the work (no heading).
+- Then write ONE section per project that has material, in the order the projects \
+  appear in the material. Begin each with a level-2 heading that LINKS to that \
+  project's page using the exact link given, e.g. \
+  `## [Domain Adaptation](/projects/#domain-adaptation)`.
+- Within a project's section, write economical prose: what was run and why, what \
+  the numbers showed (reproduce results tables as clean Markdown tables with the \
+  actual values; embed any verified figure for that project here), and any writing \
+  progress — woven together, NOT under rigid sub-headings. Omit whatever is absent. \
+  You may end a section with a brief "Next:" note ONLY if next steps are actually \
+  stated in that project's material; never speculate.
+- Any work under the `Other` marker goes last, under a plain `## Other` heading \
+  with NO link. Omit if there is none.
+- The heading link is the ONLY place a project page is referenced; the banned \
+  tool/source meta-language rules still apply to all other prose."""
 
 ACCURACY_RULES = """\
 CRITICAL ACCURACY RULES:
@@ -477,17 +558,18 @@ def _figures_section(figures: list[dict]) -> str:
         "  3. Open the PNG with the Read tool and analyse it FRESH, as if seeing it",
         "     for the first time: is it clear and legible, and does it convey the",
         "     information the surrounding report needs? If not, revise and regenerate.",
-        "  4. Embed it (Markdown image with the exact URL) near the relevant text,",
-        "     ONLY once it clearly conveys the needed information. If you cannot make",
-        "     it clear, omit it and note briefly that the figure was left out.",
+        "  4. Embed it (Markdown image with the exact URL) inside its project's",
+        "     section, near the relevant text, ONLY once it clearly conveys the",
+        "     needed information. If you cannot make it clear, omit it and note",
+        "     briefly that the figure was left out.",
         "",
-        "Figures:",
+        "Figures (each lists the project section it belongs in):",
     ]
     for f in figures:
         cap = f" — caption: {f['caption']}" if f["caption"] else ""
         lines.append(
-            f"- {f['project']}: source `{f['source']}` → create PNG at `{f['disk']}`, "
-            f"embed with url `{f['url']}`{cap}"
+            f"- Project '{f['proj_name']}': source `{f['source']}` → create PNG at "
+            f"`{f['disk']}`, embed with url `{f['url']}`{cap}"
         )
     return "\n".join(lines)
 
@@ -499,9 +581,11 @@ def write_brief(post_rel_path: str, figures: list[dict]) -> Path:
 
 Read the gathered material in `automation/_work/raw-material.md`. It covers what
 changed since the last report ({LAST_RUN or "the start of the window"}) up to
-{TODAY.isoformat()} ({WEEK_TAG}): writing from Overleaf and code + results from
-GitHub. Report only that period's work; if a source shows nothing new, say so
-rather than restating older work.
+{TODAY.isoformat()} ({WEEK_TAG}): the week's writing, code, and results. The
+material is already grouped by research project under `=== PROJECT: <name> ===`
+markers, each giving the link to use for that project's section heading. Report
+only that period's work; if there is nothing new, say so rather than restating
+older work.
 
 Then edit the file `{post_rel_path}`: replace the single placeholder line
 `{BODY_PLACEHOLDER}` (directly beneath the YAML front matter) with the drafted
@@ -547,15 +631,59 @@ def write_post_shell() -> Path:
     return path
 
 
+# --------------------------------------------------------------------------- #
+# Assemble the gathered sections into raw-material.md, grouped by project so the
+# drafter can write one linked section per project.
+# --------------------------------------------------------------------------- #
+_CAT_HEADING = {
+    "writing": "Paper / thesis writing (recent changes)",
+    "activity": "Code and experiment activity (recent)",
+    "files": ("Results, plans, and notes (recent changes) — results files "
+              "(.json/.csv) are data; plan/notes files are intent/next-steps. "
+              "Inputs only; never mention them or their filenames."),
+}
+_CAT_ORDER = {"writing": 0, "activity": 1, "files": 2}
+
+
+def assemble_raw(sections: list[dict]) -> str:
+    """Group project-tagged sections into per-project blocks with an explicit,
+    machine-readable PROJECT marker and the link the report heading should use."""
+    order = {p["name"]: i for i, p in enumerate(REPORT_PROJECTS)}
+
+    groups: dict[str, dict] = {}
+    for s in sections:
+        name = _proj_name(s["proj"])
+        g = groups.setdefault(name, {"proj": s["proj"], "items": []})
+        g["items"].append(s)
+
+    # Registered projects first (in registry order), then "Other" last.
+    def sort_key(name: str) -> tuple:
+        return (order.get(name, len(order) + (1 if name == OTHER_PROJECT else 0)), name)
+
+    parts: list[str] = []
+    for name in sorted(groups, key=sort_key):
+        g = groups[name]
+        header = [f"=== PROJECT: {name} ==="]
+        if g["proj"]:
+            header.append(f"Link the report heading for this project to: {g['proj']['url']}")
+        else:
+            header.append("No project page — report under a plain 'Other' heading with no link.")
+        body = []
+        for s in sorted(g["items"], key=lambda s: _CAT_ORDER.get(s["cat"], 9)):
+            body.append(f"#### {_CAT_HEADING.get(s['cat'], s['cat'])}\n{s['text']}")
+        parts.append("\n".join(header) + "\n\n" + "\n\n".join(body))
+    return "\n\n---\n\n".join(parts)
+
+
 def main() -> None:
     WORK_DIR.mkdir(parents=True, exist_ok=True)
 
-    gh = gather_github()
-    overleaf_text, figures = gather_overleaf()
+    sections = gather_github()
+    overleaf_sections, figures = gather_overleaf()
+    sections.extend(overleaf_sections)
 
-    sections = [s for s in (gh, overleaf_text) if s]
     if sections:
-        raw = "\n\n---\n\n".join(sections)
+        raw = assemble_raw(sections)
     else:
         log("no material gathered from any source; brief will note a quiet week")
         raw = "No writing or code activity was captured for this week."
