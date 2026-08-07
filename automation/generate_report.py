@@ -265,18 +265,6 @@ def _overleaf_projects() -> list[tuple[str, str]]:
     return items
 
 
-def _find_main_tex(repo_dir: str) -> Path | None:
-    """The .tex containing \\documentclass and \\begin{document}."""
-    for path in Path(repo_dir).rglob("*.tex"):
-        try:
-            text = path.read_text(encoding="utf-8", errors="replace")
-        except OSError:
-            continue
-        if "\\documentclass" in text and "\\begin{document}" in text:
-            return path
-    return None
-
-
 def _extract_tagged_figures(tex_text: str) -> list[tuple[str, str]]:
     """Return [(figure_source, caption)] for figures preceded by FIGURE_TAG."""
     figs: list[tuple[str, str]] = []
@@ -292,165 +280,38 @@ def _extract_tagged_figures(tex_text: str) -> list[tuple[str, str]]:
     return figs
 
 
-def _remove_cmd_braced(s: str, cmd: str) -> str:
-    """Remove every \\cmd{...} with balanced braces (handles nesting)."""
-    token = "\\" + cmd + "{"
-    while True:
-        j = s.find(token)
-        if j == -1:
-            return s
-        depth, k, end = 0, j + len(token) - 1, None
-        while k < len(s):
-            if s[k] == "{":
-                depth += 1
-            elif s[k] == "}":
-                depth -= 1
-                if depth == 0:
-                    end = k
-                    break
-            k += 1
-        s = s[:j] + (s[end + 1:] if end is not None else "")
-
-
-def _strip_float(block: str) -> str:
-    """Reduce a figure float to its bare tikzpictures (drop float/caption/label)."""
-    s = re.sub(r"\\begin\{figure\*?\}(\[[^\]]*\])?", "", block)
-    s = re.sub(r"\\end\{figure\*?\}", "", s)
-    s = _remove_cmd_braced(s, "caption")
-    s = re.sub(r"\\label\{[^}]*\}", "", s)
-    return s.replace("\\centering", "")
-
-
-def _stack_pngs(pages: list[Path], out_path: Path) -> bool:
-    """Stack page PNGs vertically into one image (for multi-tikzpicture figures)."""
-    try:
-        from PIL import Image
-    except ImportError:
-        pages[0].replace(out_path)
-        return True
-    imgs = [Image.open(p).convert("RGB") for p in pages]
-    gap = 24
-    width = max(i.width for i in imgs)
-    height = sum(i.height for i in imgs) + gap * (len(imgs) - 1)
-    canvas = Image.new("RGB", (width, height), "white")
-    y = 0
-    for im in imgs:
-        canvas.paste(im, ((width - im.width) // 2, y))
-        y += im.height + gap
-    canvas.save(out_path)
-    return True
-
-
-def _png_check(path: Path) -> tuple[bool, str]:
-    """(valid, note). Reject only clearly-broken PNGs (not a PNG, or tiny);
-    the drafting model does the authoritative visual check for blank/clipped."""
-    try:
-        head = path.read_bytes()[:24]
-    except OSError:
-        return False, "unreadable"
-    if len(head) < 24 or head[:8] != b"\x89PNG\r\n\x1a\n":
-        return False, "not a PNG"
-    width = int.from_bytes(head[16:20], "big")
-    height = int.from_bytes(head[20:24], "big")
-    if width < 40 or height < 40:
-        return False, f"too small ({width}x{height})"
-    note = f"{width}x{height}"
-    try:
-        from PIL import Image
-        img = Image.open(path).convert("L")
-        hist = img.histogram()
-        total = sum(hist) or 1
-        note += f", non-white {(total - sum(hist[250:])) / total:.4f}"
-    except Exception:  # noqa: BLE001
-        pass
-    return True, note
-
-
-def _all_tex_files(repo_dir: str) -> list[Path]:
-    return [p for p in Path(repo_dir).rglob("*.tex") if not p.name.startswith("__report_")]
-
-
-def _render_figures(repo_dir: str, label: str) -> list[dict]:
-    """Compile every %@report-tagged figure in the project to validated PNGs.
+def _collect_tagged_figures(repo_dir: str, label: str) -> list[dict]:
+    """Find %@report-tagged figures and save each one's LaTeX source for the
+    drafting model. This script does NOT render anything: the model reads the
+    source, understands the figure's intent at a high level, draws a clean PNG
+    (graphviz/matplotlib), checks it visually, and embeds it if clear.
 
     Driven by the tag, not by weekly change detection — Overleaf's git bridge
     doesn't expose reliable history, so the explicit tag is the opt-in signal."""
-    if not shutil.which("pdflatex") or not shutil.which("pdftoppm"):
-        log("pdflatex/pdftoppm not available; skipping figure rendering")
-        return []
-    main_tex = _find_main_tex(repo_dir)
-    if main_tex is None:
-        return []
-    preamble = main_tex.read_text(encoding="utf-8", errors="replace").split("\\begin{document}", 1)[0]
-
-    rendered: list[dict] = []
-    fig_index = 0
-    tagged = 0
-    for tex_path in _all_tex_files(repo_dir):
-        figs_here = _extract_tagged_figures(tex_path.read_text(encoding="utf-8", errors="replace"))
-        if figs_here:
-            log(f"figure render '{label}': {len(figs_here)} tagged figure(s) in {tex_path.name}")
-        for block, caption in figs_here:
-            tagged += 1
-            fig_index += 1
-            slug = re.sub(r"[^a-z0-9]+", "-", label.lower()).strip("-") or "fig"
-            stem = f"{slug}-{fig_index}"
-            # Wrap in the project's own preamble + the preview package to crop.
-            # Preview each tikzpicture (reliable), not the figure float (which
-            # crops to nothing). Strip the float wrapper so the tikzpictures are
-            # top-level. Compile in the project dir so \includegraphics resolves;
-            # no -halt-on-error, so a missing image becomes a box, not an abort.
-            wrapper = (
-                preamble
-                + "\n\\usepackage[active,tightpage]{preview}\n"
-                + "\\setlength\\PreviewBorder{6pt}\n"
-                + "\\PreviewEnvironment{tikzpicture}\n"
-                + "\\begin{document}\n"
-                + _strip_float(block)
-                + "\n\\end{document}\n"
-            )
-            wrap_path = Path(repo_dir) / f"__report_{stem}.tex"
-            wrap_path.write_text(wrapper, encoding="utf-8")
-            proc = None
-            for _ in range(2):  # second pass settles tikz node references
-                proc = run(
-                    ["pdflatex", "-interaction=nonstopmode", "-no-shell-escape",
-                     wrap_path.name], cwd=repo_dir, timeout=120,
-                )
-            pdf_path = wrap_path.with_suffix(".pdf")
-            if not pdf_path.exists():
-                errs = [ln for ln in proc.stdout.splitlines() if ln.startswith("!")]
-                tail = errs[:5] or proc.stdout.splitlines()[-12:]
-                log(f"figure did not compile: {label} #{fig_index}: " + " || ".join(tail))
-                continue
-            ASSETS_DIR.mkdir(parents=True, exist_ok=True)
-            prefix = ASSETS_DIR / f"__pages_{stem}"
-            run(["pdftoppm", "-png", "-r", "200", str(pdf_path), str(prefix)])
-            pages = sorted(ASSETS_DIR.glob(f"__pages_{stem}-*.png"))
-            png_path = ASSETS_DIR / f"{stem}.png"
-            if not pages:
-                log(f"figure produced no image: {label} #{fig_index}")
-                continue
-            if len(pages) == 1:
-                pages[0].replace(png_path)
-            else:
-                _stack_pngs(pages, png_path)
-                for p in pages:
-                    p.unlink(missing_ok=True)
-            valid, note = _png_check(png_path)
-            log(f"figure PNG {label} #{fig_index}: {note} ({len(pages)} page(s))")
-            if not valid:
-                png_path.unlink(missing_ok=True)
-                continue
-            rendered.append({
-                "url": f"{ASSETS_URL}/{stem}.png",
+    figs: list[dict] = []
+    idx = 0
+    slug = re.sub(r"[^a-z0-9]+", "-", label.lower()).strip("-") or "fig"
+    fig_dir = WORK_DIR / "figures"
+    for tex_path in Path(repo_dir).rglob("*.tex"):
+        try:
+            text = tex_path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        for block, caption in _extract_tagged_figures(text):
+            idx += 1
+            stem = f"{slug}-{idx}"
+            fig_dir.mkdir(parents=True, exist_ok=True)
+            header = f"% caption: {caption}\n\n" if caption else ""
+            (fig_dir / f"{stem}.tex").write_text(header + block, encoding="utf-8")
+            figs.append({
                 "project": label,
-                "source": rel,
                 "caption": caption,
+                "source": f"automation/_work/figures/{stem}.tex",
+                "disk": f"site{ASSETS_URL}/{stem}.png",
+                "url": f"{ASSETS_URL}/{stem}.png",
             })
-    if tagged:
-        log(f"figure render '{label}': {len(rendered)}/{tagged} rendered OK")
-    return rendered
+            log(f"figure to create: {stem} (from {tex_path.name}, '{label}')")
+    return figs
 
 
 def _overleaf_one(project_id: str, label: str) -> tuple[str, list[dict]]:
@@ -476,7 +337,7 @@ def _overleaf_one(project_id: str, label: str) -> tuple[str, list[dict]]:
                      if ln.startswith("+") and not ln.startswith("+++")]
             added_prose = "\n".join(added)[:5000]
 
-        figures = _render_figures(tmp, label)
+        figures = _collect_tagged_figures(tmp, label)
 
         if not (added_prose or figures):
             return "", figures
@@ -549,24 +410,36 @@ CRITICAL ACCURACY RULES:
 
 def _figures_section(figures: list[dict]) -> str:
     if not figures:
-        return "No figures were tagged for rendering this week, so embed none."
+        return "No figures were tagged this week, so create and embed none."
     lines = [
-        "Candidate figures have been rendered to PNG. For EACH one below you MUST:",
-        "  1. Open the PNG with the Read tool and actually look at it.",
-        "  2. Embed it (Markdown image, using the exact URL) ONLY if it shows a "
-        "clean, complete figure — not blank, not clipped, not a LaTeX error page.",
-        "  3. If it looks broken, do NOT embed it; briefly note the figure could "
-        "not be rendered cleanly.",
-        "Place each embedded figure near the relevant Results/Experiments text and "
-        "use its caption as the alt text / a short figure line.",
+        "Each item is a figure the author tagged for the report. You are given its",
+        "original LaTeX/TikZ SOURCE FILE and caption. Do NOT reproduce the LaTeX",
+        "exactly — that is not the goal. For EACH figure:",
         "",
-        "Candidates:",
+        "  1. Read the source file to understand, at a HIGH LEVEL, what the figure",
+        "     depicts and the essential information it must convey (the nodes and",
+        "     flow of a pipeline; the axes and trend of a plot; the groupings/labels).",
+        "  2. Create a clean, self-contained PNG that conveys that clearly. Write and",
+        "     run a small script via the Bash tool — Graphviz (`dot -Tpng`) is ideal",
+        "     for pipeline/flow diagrams; Python matplotlib for data plots or",
+        "     box-and-arrow diagrams. It does NOT need to match the LaTeX visually;",
+        "     it needs to be a plausible, legible rendering of the same information.",
+        "     Save it to the exact disk path given (mkdir -p its directory first).",
+        "  3. Open the PNG with the Read tool and analyse it FRESH, as if seeing it",
+        "     for the first time: is it clear and legible, and does it convey the",
+        "     information the surrounding report needs? If not, revise and regenerate.",
+        "  4. Embed it (Markdown image with the exact URL) near the relevant text,",
+        "     ONLY once it clearly conveys the needed information. If you cannot make",
+        "     it clear, omit it and note briefly that the figure was left out.",
+        "",
+        "Figures:",
     ]
     for f in figures:
-        # The PNG lives under site/, so its on-disk path for Read is site + url.
-        disk = f"site{f['url']}"
         cap = f" — caption: {f['caption']}" if f["caption"] else ""
-        lines.append(f"- {f['project']}: url `{f['url']}`, file to inspect `{disk}`{cap}")
+        lines.append(
+            f"- {f['project']}: source `{f['source']}` → create PNG at `{f['disk']}`, "
+            f"embed with url `{f['url']}`{cap}"
+        )
     return "\n".join(lines)
 
 
@@ -581,8 +454,9 @@ code + results from GitHub.
 
 Then edit the file `{post_rel_path}`: replace the single placeholder line
 `{BODY_PLACEHOLDER}` (directly beneath the YAML front matter) with the drafted
-report body in Markdown. Do NOT modify the YAML front matter. Do not create any
-other files (you may Read the figure PNGs listed below to inspect them).
+report body in Markdown. Do NOT modify the YAML front matter. The only files you
+should write are the report post, the figure PNGs described below, and any short
+scripts you use to generate them.
 
 ## Style
 {PINKER_STYLE}

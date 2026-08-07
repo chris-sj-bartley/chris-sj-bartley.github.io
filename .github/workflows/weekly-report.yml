@@ -31,12 +31,12 @@ jobs:
       - name: Install dependencies
         run: pip install -r automation/requirements.txt
 
-      - name: Install LaTeX toolchain (for rendering tagged figures)
-        # texlive-full so any package a paper uses (tipa, pgfplots, …) is present
-        # and we don't chase missing-package errors. poppler-utils gives pdftoppm.
+      - name: Install figure tools (graphviz; matplotlib via requirements)
+        # The drafting model draws tagged figures itself with graphviz/matplotlib
+        # (understanding the TikZ at a high level), rather than compiling LaTeX.
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends texlive-full poppler-utils
+          sudo apt-get install -y --no-install-recommends graphviz
 
       - name: Gather the week's material, render figures, prepare the post
         id: gather
@@ -51,9 +51,9 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ github.token }}
           prompt: "Read automation/_work/report-brief.md and follow its instructions exactly."
-          # Whitelist the file tools Claude needs — without this the action denies
-          # Edit/Write and the post body is never drafted (permission_denials).
-          claude_args: "--model claude-opus-4-8 --max-turns 15 --allowedTools Read,Edit,Write,Glob,Grep"
+          # Bash lets it draw figures (graphviz/matplotlib) and view the results;
+          # more turns because figure generation iterates (draw → look → revise).
+          claude_args: "--model claude-opus-4-8 --max-turns 40 --allowedTools Read,Edit,Write,Glob,Grep,Bash"
 
       - name: Open pull request
         uses: peter-evans/create-pull-request@v6

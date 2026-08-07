@@ -11,10 +11,12 @@ OAuth token — not API billing, so no card or console credit is spent).
   1. generate_report.py gathers:
      • GitHub API → week's commits, PRs, results
      • Overleaf git bridge → diff .tex (writing + results tables)
-     • renders figures tagged %@report → validated PNGs in site assets
+     • extracts figures tagged %@report (their LaTeX source) for the model
      → writes _work/raw-material.md + brief; lays down the post shell in _posts/
-  2. Claude Code Action (subscription auth): reads the brief, VISUALLY INSPECTS
-     each rendered figure, writes the Pinker-style body (embeds only good figures)
+  2. Claude Code Action (subscription auth): reads the brief; for each tagged
+     figure, understands the TikZ at a high level and DRAWS a clean PNG
+     (graphviz/matplotlib), views it, and embeds it only if it reads clearly;
+     writes the Pinker-style body
   3. create-pull-request opens the PR  ──▶ you review & merge ──▶ Pages deploy
 ```
 
@@ -87,23 +89,24 @@ there is no API to list projects, so you maintain a short list of project IDs.
    commit. That's the only per-project step — the account token already covers it.
    Projects with no changes in a given week are silently skipped.
 
-### 5. Figures (rendered from your LaTeX, verified before embedding)
+### 5. Figures (drawn from your LaTeX's intent, verified before embedding)
 
 Results **tables** need nothing — the drafter reproduces changed tables as
-Markdown from the `.tex`. **Figures** are rendered only when you opt each one in:
+Markdown from the `.tex`. **Figures** are drawn only when you opt each one in:
 
 1. Put a comment line `%@report` directly above the `\begin{figure}` you want in
    the report (change the marker with the `REPORT_FIGURE_TAG` env var if you like).
-2. Each Friday, tagged figures in `.tex` files that changed that week are compiled
-   with your project's own class + preamble (via the LaTeX `preview` package, in
-   the cloned project so `\includegraphics` resolves), converted to PNG, and
-   validated (valid, non-blank, sensible size).
-3. The drafting step then **opens each PNG and looks at it**, embedding only the
-   ones that render cleanly and noting any that don't. You get the final say in
-   the PR, where every embedded figure shows in the diff.
+2. Each Friday, the drafting model reads each tagged figure's LaTeX/TikZ source,
+   understands *at a high level* what it depicts and the information it must
+   convey, and **draws a clean PNG** (graphviz for pipelines, matplotlib for
+   plots). The goal is a plausible, legible rendering of the same information —
+   **not** a pixel-faithful LaTeX compile.
+3. It then **opens the PNG and analyses it fresh**: is it clear, and does it
+   convey what the report needs? It regenerates if not, and embeds only figures
+   that read clearly — noting any it left out. You get the final say in the PR,
+   where every embedded figure shows in the diff.
 
-Figures that fail to compile or look broken are skipped — they never silently
-land in the report. Nothing to configure beyond the `%@report` tags.
+Nothing to configure beyond the `%@report` tags.
 
 ### 6. Test it before trusting the schedule
 
