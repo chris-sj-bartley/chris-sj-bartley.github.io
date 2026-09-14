@@ -16,6 +16,12 @@ permalink: /samples/
 
 <ul class="pub-list">
   <li>
+    <span class="pub-title"><a href="{{ '/samples/generated-samples/' | relative_url }}">Voice conversion samples</a></span><br>
+    Model output across three conversion tasks &mdash; speaker identity (timbre),
+    accent, and speaking style &mdash; with source, target reference, and
+    generated audio side by side for ten examples per task.
+  </li>
+  <li>
     <span class="pub-title"><a href="{{ '/research/pair-corpora/' | relative_url }}">Cross-speaker pair corpora (LibriTTS)</a></span><br>
     The same content spoken by two different speakers: content-matched word and
     phone pairs used to train diffusion voice conversion. Inline players across
