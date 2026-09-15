@@ -71,12 +71,6 @@ Samples from a voice-conversion system evaluated across three conversion tasks, 
 <tr><th>Source</th><th>Target reference</th><th>Generated</th></tr>
 </thead>
 <tbody>
-<tr class="cap-row"><td colspan="3">“I see them about twenty paces behind my lord.”</td></tr>
-<tr class="data-row">
-<td><span class="tag">Speaker 2238</span><audio controls preload="none" src="{{ '/assets/generated-samples/timbre/2238_121413_000051_000001__to__5322/src.mp3' | relative_url }}"></audio></td>
-<td><span class="tag">Speaker 5322</span><audio controls preload="none" src="{{ '/assets/generated-samples/timbre/2238_121413_000051_000001__to__5322/tgt.mp3' | relative_url }}"></audio></td>
-<td><span class="tag">Speaker 5322</span><audio controls preload="none" src="{{ '/assets/generated-samples/timbre/2238_121413_000051_000001__to__5322/gen.mp3' | relative_url }}"></audio></td>
-</tr>
 <tr class="cap-row"><td colspan="3">“If I should not be in, wait for me.”</td></tr>
 <tr class="data-row">
 <td><span class="tag">Speaker 2238</span><audio controls preload="none" src="{{ '/assets/generated-samples/timbre/2238_121415_000049_000000__to__5126/src.mp3' | relative_url }}"></audio></td>
@@ -88,12 +82,6 @@ Samples from a voice-conversion system evaluated across three conversion tasks, 
 <td><span class="tag">Speaker 2238</span><audio controls preload="none" src="{{ '/assets/generated-samples/timbre/2238_121415_000061_000000__to__5126/src.mp3' | relative_url }}"></audio></td>
 <td><span class="tag">Speaker 5126</span><audio controls preload="none" src="{{ '/assets/generated-samples/timbre/2238_121415_000061_000000__to__5126/tgt.mp3' | relative_url }}"></audio></td>
 <td><span class="tag">Speaker 5126</span><audio controls preload="none" src="{{ '/assets/generated-samples/timbre/2238_121415_000061_000000__to__5126/gen.mp3' | relative_url }}"></audio></td>
-</tr>
-<tr class="cap-row"><td colspan="3">“Rather the other way, indeed.”</td></tr>
-<tr class="data-row">
-<td><span class="tag">Speaker 5126</span><audio controls preload="none" src="{{ '/assets/generated-samples/timbre/5126_27504_000005_000001__to__2238/src.mp3' | relative_url }}"></audio></td>
-<td><span class="tag">Speaker 2238</span><audio controls preload="none" src="{{ '/assets/generated-samples/timbre/5126_27504_000005_000001__to__2238/tgt.mp3' | relative_url }}"></audio></td>
-<td><span class="tag">Speaker 2238</span><audio controls preload="none" src="{{ '/assets/generated-samples/timbre/5126_27504_000005_000001__to__2238/gen.mp3' | relative_url }}"></audio></td>
 </tr>
 <tr class="cap-row"><td colspan="3">“In the old days she had dressed for her own sake to look pretty and be admired.”</td></tr>
 <tr class="data-row">
@@ -169,23 +157,11 @@ Samples from a voice-conversion system evaluated across three conversion tasks, 
 <td><span class="tag">English</span><audio controls preload="none" src="{{ '/assets/generated-samples/accent/ireland2england_054/tgt.mp3' | relative_url }}"></audio></td>
 <td><span class="tag">English</span><audio controls preload="none" src="{{ '/assets/generated-samples/accent/ireland2england_054/gen.mp3' | relative_url }}"></audio></td>
 </tr>
-<tr class="cap-row"><td colspan="3">“The Greeks used to imagine that it was a sign from the gods to foretell war or heavy rain.”</td></tr>
-<tr class="data-row">
-<td><span class="tag">Irish</span><audio controls preload="none" src="{{ '/assets/generated-samples/accent/ireland2north_america_036/src.mp3' | relative_url }}"></audio></td>
-<td><span class="tag">American</span><audio controls preload="none" src="{{ '/assets/generated-samples/accent/ireland2north_america_036/tgt.mp3' | relative_url }}"></audio></td>
-<td><span class="tag">American</span><audio controls preload="none" src="{{ '/assets/generated-samples/accent/ireland2north_america_036/gen.mp3' | relative_url }}"></audio></td>
-</tr>
 <tr class="cap-row"><td colspan="3">“If the red of the second bow falls upon the green of the first, the result is to give a bow with an abnormally wide yellow band, since red and green light when mixed form yellow.”</td></tr>
 <tr class="data-row">
 <td><span class="tag">Irish</span><audio controls preload="none" src="{{ '/assets/generated-samples/accent/ireland2scotland_041/src.mp3' | relative_url }}"></audio></td>
 <td><span class="tag">Scottish</span><audio controls preload="none" src="{{ '/assets/generated-samples/accent/ireland2scotland_041/tgt.mp3' | relative_url }}"></audio></td>
 <td><span class="tag">Scottish</span><audio controls preload="none" src="{{ '/assets/generated-samples/accent/ireland2scotland_041/gen.mp3' | relative_url }}"></audio></td>
-</tr>
-<tr class="cap-row"><td colspan="3">“Since then physicists have found that it is not reflection, but refraction by the raindrops which causes the rainbows.”</td></tr>
-<tr class="data-row">
-<td><span class="tag">American</span><audio controls preload="none" src="{{ '/assets/generated-samples/accent/north_america2england_061/src.mp3' | relative_url }}"></audio></td>
-<td><span class="tag">English</span><audio controls preload="none" src="{{ '/assets/generated-samples/accent/north_america2england_061/tgt.mp3' | relative_url }}"></audio></td>
-<td><span class="tag">English</span><audio controls preload="none" src="{{ '/assets/generated-samples/accent/north_america2england_061/gen.mp3' | relative_url }}"></audio></td>
 </tr>
 <tr class="cap-row"><td colspan="3">“The difference in the rainbow depends considerably upon the size of the drops, and the width of the colored band increases as the size of the drops increases.”</td></tr>
 <tr class="data-row">
@@ -219,23 +195,11 @@ Samples from a voice-conversion system evaluated across three conversion tasks, 
 <tr><th>Source</th><th>Target reference</th><th>Generated</th></tr>
 </thead>
 <tbody>
-<tr class="cap-row"><td colspan="3">“You're quite wrong, he said.”</td></tr>
-<tr class="data-row">
-<td><span class="tag">Laughing</span><audio controls preload="none" src="{{ '/assets/generated-samples/style/ex01_00366_laughing2whisper/src.mp3' | relative_url }}"></audio></td>
-<td><span class="tag">Whisper</span><audio controls preload="none" src="{{ '/assets/generated-samples/style/ex01_00366_laughing2whisper/tgt.mp3' | relative_url }}"></audio></td>
-<td><span class="tag">Whisper</span><audio controls preload="none" src="{{ '/assets/generated-samples/style/ex01_00366_laughing2whisper/gen.mp3' | relative_url }}"></audio></td>
-</tr>
 <tr class="cap-row"><td colspan="3">“So, what was he really doing?”</td></tr>
 <tr class="data-row">
 <td><span class="tag">Sad</span><audio controls preload="none" src="{{ '/assets/generated-samples/style/ex01_00367_sad2whisper/src.mp3' | relative_url }}"></audio></td>
 <td><span class="tag">Whisper</span><audio controls preload="none" src="{{ '/assets/generated-samples/style/ex01_00367_sad2whisper/tgt.mp3' | relative_url }}"></audio></td>
 <td><span class="tag">Whisper</span><audio controls preload="none" src="{{ '/assets/generated-samples/style/ex01_00367_sad2whisper/gen.mp3' | relative_url }}"></audio></td>
-</tr>
-<tr class="cap-row"><td colspan="3">“So the dog *ate* the canary?”</td></tr>
-<tr class="data-row">
-<td><span class="tag">Happy</span><audio controls preload="none" src="{{ '/assets/generated-samples/style/ex01_00369_happy2sad/src.mp3' | relative_url }}"></audio></td>
-<td><span class="tag">Sad</span><audio controls preload="none" src="{{ '/assets/generated-samples/style/ex01_00369_happy2sad/tgt.mp3' | relative_url }}"></audio></td>
-<td><span class="tag">Sad</span><audio controls preload="none" src="{{ '/assets/generated-samples/style/ex01_00369_happy2sad/gen.mp3' | relative_url }}"></audio></td>
 </tr>
 <tr class="cap-row"><td colspan="3">“With exercising our first amendment rights?”</td></tr>
 <tr class="data-row">
