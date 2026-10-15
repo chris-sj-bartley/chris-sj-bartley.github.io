@@ -53,11 +53,11 @@ description: >-
     top: 50%;
     transform: translate(-50%, -50%);
     box-sizing: border-box;
-    width: 9px;
-    height: 9px;
+    width: 14px;
+    height: 14px;
     padding: 0;
     border-radius: 50%;
-    border: 1.5px solid rgba(255, 255, 255, 0.95);
+    border: 2px solid rgba(255, 255, 255, 0.95);
     background: var(--green);
     box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25);
     cursor: pointer;
@@ -65,7 +65,7 @@ description: >-
   }
   .phd-dot:hover,
   .phd-dot:focus-visible,
-  .phd-dot.is-active { transform: translate(-50%, -50%) scale(1.6); z-index: 2; }
+  .phd-dot.is-active { transform: translate(-50%, -50%) scale(1.3); z-index: 2; }
   .phd-dot.is-active { background: #1d7a46; }
   .phd-dot.is-now { animation: phd-pulse 2s ease-out infinite; }
   @keyframes phd-pulse {
@@ -730,6 +730,7 @@ description: >-
       dot.setAttribute("aria-label", when + ": " + title);
       dot.setAttribute("data-label", title);
       dot.style.setProperty("--x", x + "%");
+      dot._x = x;
 
       dot.addEventListener("click", function () {
         details.open = true;
@@ -745,6 +746,37 @@ description: >-
       dotsBox.appendChild(dot);
       return dot;
     });
+
+    // Nudge dots sideways so none overlap: neighbours closer than GAP pixels
+    // are grouped and spread out evenly around the group's average position.
+    var GAP = 16;
+    var sorted = dots.slice().sort(function (a, b) { return a._x - b._x; });
+    function spread() {
+      var width = dotsBox.clientWidth;
+      if (!width) return;
+      var groups = [];
+      function first(g) { return g.sum / g.dots.length - (g.dots.length - 1) * GAP / 2; }
+      sorted.forEach(function (dot) {
+        groups.push({ sum: dot._x / 100 * width, dots: [dot] });
+        while (groups.length > 1) {
+          var b = groups[groups.length - 1], a = groups[groups.length - 2];
+          if (first(b) - (first(a) + (a.dots.length - 1) * GAP) >= GAP) break;
+          a.sum += b.sum;
+          a.dots = a.dots.concat(b.dots);
+          groups.pop();
+        }
+      });
+      var px = [];
+      groups.forEach(function (g) {
+        var start = first(g);
+        g.dots.forEach(function (dot, i) { px.push(start + i * GAP); });
+      });
+      // Keep everything inside the bar without reintroducing overlaps.
+      var n = px.length;
+      for (var i = 0; i < n; i++) px[i] = Math.max(px[i], i ? px[i - 1] + GAP : GAP / 2);
+      for (i = n - 1; i >= 0; i--) px[i] = Math.min(px[i], i < n - 1 ? px[i + 1] - GAP : width - GAP / 2);
+      sorted.forEach(function (dot, i) { dot.style.setProperty("--x", px[i] + "px"); });
+    }
 
     // Expand / collapse all.
     var tools = document.getElementById("timeline-tools");
@@ -763,6 +795,8 @@ description: >-
 
     bar.hidden = false;
     tools.hidden = false;
+    spread();
+    window.addEventListener("resize", spread);
     requestAnimationFrame(function () {
       requestAnimationFrame(function () { bar.classList.add("is-ready"); });
     });
