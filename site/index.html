@@ -67,11 +67,6 @@ description: >-
   .phd-dot:focus-visible,
   .phd-dot.is-active { transform: translate(-50%, -50%) scale(1.3); z-index: 2; }
   .phd-dot.is-active { background: #1d7a46; }
-  .phd-dot.is-now { animation: phd-pulse 2s ease-out infinite; }
-  @keyframes phd-pulse {
-    0%   { box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25), 0 0 0 0 rgba(47, 165, 101, 0.55); }
-    100% { box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25), 0 0 0 12px rgba(47, 165, 101, 0); }
-  }
   .phd-dot::after {
     content: attr(data-label);
     position: absolute;
@@ -191,7 +186,6 @@ description: >-
 
   @media (prefers-reduced-motion: reduce) {
     .phd-fill, .phd-dot, .timeline > li { transition: none; }
-    .phd-dot.is-now { animation: none; }
   }
 </style>
 
@@ -484,6 +478,22 @@ description: >-
       </details>
     </li>
 
+    <li data-date="2026-06-22">
+      <details>
+        <summary><span class="when">June 2026</span><span class="ttl">Poster at UKIS 2026</span></summary>
+        <div class="tl-body">
+          <p>
+            A year after my first visit, I returned to
+            <a href="https://sites.google.com/view/ukis2026/home">UKIS</a> at
+            King's College London and presented the Interspeech work as a poster.
+          </p>
+          <p class="more">
+            <a href="{{ '/assets/posters/ukis2026-bootstrapping-endangered-language-asr.pdf' | relative_url }}">View the poster (PDF)</a>
+          </p>
+        </div>
+      </details>
+    </li>
+
     <li data-date="2026-07">
       <details>
         <summary><span class="when">July 2026</span><span class="ttl">Launching Gaelg AI</span></summary>
@@ -534,87 +544,13 @@ description: >-
       </details>
     </li>
 
-    <li data-date="now">
-      <details>
-        <summary><span class="when">Now</span><span class="ttl">Tackling domain mismatch</span></summary>
-        <div class="tl-body">
-          <p>
-            My current work picks up the biggest weakness the Interspeech paper
-            exposed, using voice conversion to generate training data for the kinds
-            of speech the systems struggle with. More on that below.
-          </p>
-        </div>
-      </details>
-    </li>
   </ol>
 
-  <h2>What's next: the domain problem</h2>
-
   <p>
-    ASR works well on speech that resembles its training data and much worse
-    on anything else. Endangered-language data is usually careful read speech
-    from a few speakers, while real archives are full of spontaneous
-    conversation. The Interspeech paper shows the cost: out-of-domain error is
-    well above in-domain error in all five languages, and for Cornish it climbs
-    from under 8% on read speech to over 70% on a spontaneous interview.
-  </p>
-
-  <p>
-    The usual fixes are collecting in-domain data, adapting models to the
-    target domain, self-training on untranscribed audio, and data
-    augmentation. Augmentation suits endangered languages best because it
-    needs no new recordings, but standard techniques (speed changes, noise,
-    spectrogram masking) alter the conditions around speech, not the way
-    people actually speak.
-  </p>
-
-  <h2>My approach: converting speech between domains</h2>
-
-  <p>
-    I'm working on data augmentation through <strong>speech-to-speech
-    conversion</strong>: taking the read speech a system already has and
-    converting aspects of it (who is speaking, their accent, their speaking
-    style) towards the domain the system will face, while keeping the words
-    the same. The converted audio keeps its transcript, so it can go straight
-    into training.
-  </p>
-
-  <p>
-    The difficulty is teaching a model to do the conversion. The cleanest way
-    is to show it pairs of recordings that say the same thing but differ in
-    one attribute. Whole sentences almost never repeat across speakers, so
-    such pairs are widely assumed to be unobtainable, and most of the field
-    turns to unsupervised methods instead. Those work well for changing a
-    voice, but struggle with accent and style, which are about <em>how</em>
-    something is said.
-  </p>
-
-  <p>
-    My answer is a <strong>sub-utterance pairing scheme</strong>. Rather than
-    looking for whole matching sentences, I slide a short window over the
-    transcripts of an ordinary corpus and match identical runs of words or
-    phones spoken by different speakers. Short sequences recur constantly, so
-    this recovers a large amount of real, paired training data from corpora
-    that were never designed for it, with no extra recording or synthesis.
-    Shorter windows give many more pairs but less context to learn from, and
-    finding the balance between the two is part of the work.
-  </p>
-
-  <p>
-    Trained this way, diffusion-based conversion models handle speaker,
-    accent and speaking-style conversion, and the converted speech can be
-    used to train ASR across a range from read to spontaneous speech. This is
-    the subject of the paper I'm currently preparing for ICASSP 2027.
-  </p>
-
-  <p>
-    You can hear both halves of it:
-    <a href="{{ '/research/pair-corpora/' | relative_url }}">example training pairs</a>
-    and <a href="{{ '/samples/generated-samples/' | relative_url }}">converted speech samples</a>.
-  </p>
-
-  <p class="more">
-    <a href="{{ '/projects/#voice-conversion-domain-adaptation' | relative_url }}">More on this project</a>
+    The timeline mostly captures moments: papers, talks, launches and other
+    outputs from my research. Behind them, I'm always working on research
+    problems specific to endangered languages. You can read about those on the
+    <a href="{{ '/projects/' | relative_url }}">projects page</a>.
   </p>
 
   <h2>Things I've built</h2>
@@ -680,9 +616,8 @@ description: >-
     function pct(d) {
       return Math.max(0, Math.min(100, (d - START) / (END - START) * 100));
     }
-    // "YYYY-MM-DD", or "YYYY-MM" -> middle of that month; "now" -> today.
+    // "YYYY-MM-DD", or "YYYY-MM" -> middle of that month.
     function parse(s) {
-      if (s === "now") return today;
       var p = s.split("-");
       return new Date(+p[0], +p[1] - 1, p[2] ? +p[2] : 15);
     }
@@ -724,7 +659,6 @@ description: >-
       var dot = document.createElement("button");
       dot.type = "button";
       dot.className = "phd-dot";
-      if (li.getAttribute("data-date") === "now") dot.classList.add("is-now");
       if (x < 12) dot.classList.add("edge-l");
       if (x > 88) dot.classList.add("edge-r");
       dot.setAttribute("aria-label", when + ": " + title);
