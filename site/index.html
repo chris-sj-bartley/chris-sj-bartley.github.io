@@ -12,7 +12,6 @@ description: >-
   .phd-bar {
     --green: #2fa565;
     --track: rgba(128, 128, 128, 0.22);
-    --row-h: 16px;
     margin: 1.4rem 0 1.6rem;
     padding: 1rem 1.1rem 0.8rem;
     border: 1px solid rgba(128, 128, 128, 0.3);
@@ -30,20 +29,19 @@ description: >-
   .phd-head .pct { font-weight: 600; color: var(--green); }
   .phd-track-wrap {
     position: relative;
-    margin: 0 7px;
-    padding-top: calc((var(--rows, 1) - 1) * var(--row-h) + 10px);
+    margin: 0 6px;
   }
   .phd-track {
     position: relative;
-    height: 10px;
-    border-radius: 5px;
+    height: 12px;
+    border-radius: 6px;
     background: var(--track);
     overflow: hidden;
   }
   .phd-fill {
     height: 100%;
     width: 0;
-    border-radius: 5px;
+    border-radius: 6px;
     background: linear-gradient(90deg, #4cc37f, var(--green));
     transition: width 1.4s cubic-bezier(0.22, 1, 0.36, 1);
   }
@@ -52,13 +50,14 @@ description: >-
   .phd-dot {
     position: absolute;
     left: var(--x);
-    bottom: calc(5px + var(--row, 0) * var(--row-h));
-    transform: translate(-50%, 50%);
-    width: 13px;
-    height: 13px;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    box-sizing: border-box;
+    width: 9px;
+    height: 9px;
     padding: 0;
     border-radius: 50%;
-    border: 2px solid rgba(255, 255, 255, 0.95);
+    border: 1.5px solid rgba(255, 255, 255, 0.95);
     background: var(--green);
     box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25);
     cursor: pointer;
@@ -66,7 +65,7 @@ description: >-
   }
   .phd-dot:hover,
   .phd-dot:focus-visible,
-  .phd-dot.is-active { transform: translate(-50%, 50%) scale(1.35); z-index: 2; }
+  .phd-dot.is-active { transform: translate(-50%, -50%) scale(1.6); z-index: 2; }
   .phd-dot.is-active { background: #1d7a46; }
   .phd-dot.is-now { animation: phd-pulse 2s ease-out infinite; }
   @keyframes phd-pulse {
@@ -76,7 +75,7 @@ description: >-
   .phd-dot::after {
     content: attr(data-label);
     position: absolute;
-    bottom: calc(100% + 8px);
+    bottom: calc(100% + 10px);
     left: 50%;
     transform: translateX(-50%);
     white-space: nowrap;
@@ -97,7 +96,7 @@ description: >-
   .phd-years {
     position: relative;
     height: 1.6em;
-    margin: 0 7px;
+    margin: 0 6px;
     font-size: 0.75em;
     opacity: 0.65;
   }
@@ -114,10 +113,6 @@ description: >-
     height: 6px;
     border-left: 1px solid currentColor;
   }
-  .phd-years span.start { transform: none; }
-  .phd-years span.end { transform: translateX(-100%); }
-  .phd-years span.start::before { left: 0; }
-  .phd-years span.end::before { left: 100%; }
   .phd-hint { font-size: 0.78em; opacity: 0.6; margin: 0.2rem 0 0; }
 
   /* ---------- Milestone list ---------- */
@@ -511,7 +506,7 @@ description: >-
       </details>
     </li>
 
-    <li data-date="2026-09">
+    <li data-date="2026-09-27">
       <details>
         <summary><span class="when">September 2026</span><span class="ttl">Presenting in Sydney</span></summary>
         <div class="tl-body">
@@ -672,11 +667,11 @@ description: >-
     function pct(d) {
       return Math.max(0, Math.min(100, (d - START) / (END - START) * 100));
     }
-    // "YYYY-MM" -> middle of that month; "now" -> today.
+    // "YYYY-MM-DD", or "YYYY-MM" -> middle of that month; "now" -> today.
     function parse(s) {
       if (s === "now") return today;
       var p = s.split("-");
-      return new Date(+p[0], +p[1] - 1, 15);
+      return new Date(+p[0], +p[1] - 1, p[2] ? +p[2] : 15);
     }
 
     var todayPct = pct(today);
@@ -684,18 +679,14 @@ description: >-
     document.getElementById("phd-pct").textContent =
       Math.floor(todayPct) + "% of the way through";
 
-    // Year ticks, plus start and end labels.
+    // A tick at the start of each year.
     var years = bar.querySelector(".phd-years");
-    function tick(text, d, cls) {
+    [2025, 2026, 2027, 2028].forEach(function (y) {
       var s = document.createElement("span");
-      s.textContent = text;
-      s.style.left = pct(d) + "%";
-      if (cls) s.className = cls;
+      s.textContent = String(y);
+      s.style.left = pct(new Date(y, 0, 1)) + "%";
       years.appendChild(s);
-    }
-    tick("Oct 2024", START, "start");
-    [2026, 2027].forEach(function (y) { tick(String(y), new Date(y, 0, 1)); });
-    tick("Apr 2028", END, "end");
+    });
 
     // One dot per milestone.
     var dotsBox = bar.querySelector(".phd-dots");
@@ -715,7 +706,6 @@ description: >-
       dot.setAttribute("aria-label", when + ": " + title);
       dot.setAttribute("data-label", title);
       dot.style.setProperty("--x", x + "%");
-      dot._x = x;
 
       dot.addEventListener("click", function () {
         details.open = true;
@@ -731,20 +721,6 @@ description: >-
       dotsBox.appendChild(dot);
       return dot;
     });
-
-    // Stack dots that would overlap into rows above the track.
-    function stack() {
-      var width = dotsBox.clientWidth || 1;
-      var minGap = 16 / width * 100;
-      var lastInRow = [];
-      dots.forEach(function (dot) {
-        var row = 0;
-        while (lastInRow[row] !== undefined && dot._x - lastInRow[row] < minGap) row++;
-        lastInRow[row] = dot._x;
-        dot.style.setProperty("--row", row);
-      });
-      bar.style.setProperty("--rows", lastInRow.length);
-    }
 
     // Expand / collapse all.
     var tools = document.getElementById("timeline-tools");
@@ -763,8 +739,6 @@ description: >-
 
     bar.hidden = false;
     tools.hidden = false;
-    stack();
-    window.addEventListener("resize", stack);
     requestAnimationFrame(function () {
       requestAnimationFrame(function () { bar.classList.add("is-ready"); });
     });
