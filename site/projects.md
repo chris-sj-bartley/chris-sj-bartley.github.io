@@ -24,7 +24,7 @@ When I began my PhD, Manx had no utterance-level speech corpus: the collection o
 
 Almost none of that audio was ready to use. Dictionary entries are single words; long recordings come with transcripts that only loosely line up with the audio. Using the alignment pipeline described [below](#endangered-language-asr), I turned this material into the first utterance-level corpus of Manx, with 18 hours of aligned speech in the first release.
 
-Because every word in the corpus is time-aligned, it can also be searched. The **searchable Manx speech corpus** lets you type a word or phrase and hear each place it is spoken in the recordings: a way for learners to hear real usage from many different speakers, and for researchers to explore the archive by text rather than by listening end to end.
+Because every word in the corpus is time-aligned, it can also be searched. The [**searchable Manx speech corpus**](https://speech.gaelg.im/speech), released in September 2026, covers all 350+ hours of Manx speech on the web. Type a word or phrase and hear each place it is spoken in the recordings: a way for learners to hear real usage from many different speakers, and for researchers to explore the archive by text rather than by listening end to end.
 
 ---
 
