@@ -94,13 +94,14 @@ description: >-
 
   <ol class="timeline">
     <li>
-      <span class="when">2024</span>
-      <h3>Collecting Manx</h3>
+      <span class="when">October – December 2024</span>
+      <h3>Starting the PhD and collecting Manx</h3>
       <p>
-        When I started, Manx had no speech recognition and no speech corpus of
-        the kind such systems are trained on. So the first job was gathering
-        what existed: spoken dictionary entries, broadcasts, interviews and
-        folklore recordings, more than 300 hours of audio in all.
+        I started my PhD in October 2024. At that point Manx had no speech
+        recognition and no speech corpus of the kind such systems are trained
+        on, so the first job was gathering what existed: spoken dictionary
+        entries, broadcasts, interviews and folklore recordings. By December I
+        had around 300 hours of speech and 4.8 million words of text.
       </p>
       <p>
         Very little of it looked like a standard training corpus. Some was
@@ -115,23 +116,72 @@ description: >-
     </li>
 
     <li>
-      <span class="when">October 2025</span>
-      <h3>A first ASR system for Manx</h3>
+      <span class="when">January – March 2025</span>
+      <h3>Learning the tools</h3>
+      <p>
+        To make use of that material I learnt Kaldi, the speech recognition
+        toolkit, and forced alignment, the technique of lining up a transcript
+        with the exact moments each word is spoken in a recording. Alignment
+        became the key that unlocked the long recordings.
+      </p>
+    </li>
+
+    <li>
+      <span class="when">February – May 2025</span>
+      <h3>The world's first Manx ASR</h3>
       <p>
         Using a spoken dictionary as the seed, I built the first speech
-        recognition systems for Manx and for Cornish. Just 40 minutes of
-        dictionary audio was enough for a usable baseline (under 50% word
-        error rate), and as little as 8 minutes was enough to begin aligning
-        the long-form recordings and turning them into new training data. With
-        domain-matched segments added, the Manx system reached under 25% word
-        error rate.
-      </p>
-      <p>
-        Along the way the project produced the first utterance-level speech
-        corpora for Manx (18 hours) and Cornish (39 hours). One lesson stood
+        recognition systems for Manx. Just 40 minutes of dictionary audio was
+        enough for a usable baseline (under 50% word error rate), and as little
+        as 8 minutes was enough to begin aligning the long-form recordings and
+        turning them into new training data. With domain-matched segments
+        added, the system reached under 25% word error rate. One lesson stood
         out: variety of speakers, styles and sources mattered more than sheer
-        quantity of audio. I wrote the work up as a
-        <a href="https://arxiv.org/abs/2510.04832">preprint</a>.
+        quantity of audio.
+      </p>
+    </li>
+
+    <li>
+      <span class="when">May 2025</span>
+      <h3>Getting out there</h3>
+      <p>
+        I took the work on the road for the first time, at UKIS and our CDT
+        conference, and spent a lot of time talking to other researchers
+        about what I was building.
+      </p>
+    </li>
+
+    <li>
+      <span class="when">June – July 2025</span>
+      <h3>Back to the community</h3>
+      <p>
+        With working systems in hand, I shared Manx transcription technology
+        with the Manx-speaking community and spent the summer gathering
+        feedback on what was useful and what wasn't.
+      </p>
+    </li>
+
+    <li>
+      <span class="when">August 2025</span>
+      <h3>The world's first Cornish ASR</h3>
+      <p>
+        To check the approach wasn't specific to Manx, I applied it to Cornish,
+        producing the first speech recognition system for that language too.
+        Together the two projects produced the first utterance-level speech
+        corpora for Manx (18 hours) and Cornish (39 hours).
+      </p>
+    </li>
+
+    <li>
+      <span class="when">September – October 2025</span>
+      <h3>First paper</h3>
+      <p>
+        I wrote up the Manx and Cornish work and submitted it to ICASSP in
+        September, then posted it as a
+        <a href="https://arxiv.org/abs/2510.04832">preprint</a> in October.
+      </p>
+      <p class="more">
+        <a href="{{ '/projects/#endangered-language-asr' | relative_url }}">More on this project</a>
       </p>
     </li>
 
