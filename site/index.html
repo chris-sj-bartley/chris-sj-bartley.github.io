@@ -8,38 +8,196 @@ description: >-
 ---
 
 <style>
+  /* ---------- PhD progress bar ---------- */
+  .phd-bar {
+    --green: #2fa565;
+    --track: rgba(128, 128, 128, 0.22);
+    --row-h: 16px;
+    margin: 1.4rem 0 1.6rem;
+    padding: 1rem 1.1rem 0.8rem;
+    border: 1px solid rgba(128, 128, 128, 0.3);
+    border-radius: 12px;
+  }
+  .phd-head {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 0.3rem 1rem;
+    font-size: 0.85em;
+    margin-bottom: 0.6rem;
+  }
+  .phd-head .label { opacity: 0.75; }
+  .phd-head .pct { font-weight: 600; color: var(--green); }
+  .phd-track-wrap {
+    position: relative;
+    margin: 0 7px;
+    padding-top: calc((var(--rows, 1) - 1) * var(--row-h) + 10px);
+  }
+  .phd-track {
+    position: relative;
+    height: 10px;
+    border-radius: 5px;
+    background: var(--track);
+    overflow: hidden;
+  }
+  .phd-fill {
+    height: 100%;
+    width: 0;
+    border-radius: 5px;
+    background: linear-gradient(90deg, #4cc37f, var(--green));
+    transition: width 1.4s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .phd-bar.is-ready .phd-fill { width: var(--today); }
+  .phd-dots { position: absolute; inset: 0; }
+  .phd-dot {
+    position: absolute;
+    left: var(--x);
+    bottom: calc(5px + var(--row, 0) * var(--row-h));
+    transform: translate(-50%, 50%);
+    width: 13px;
+    height: 13px;
+    padding: 0;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.95);
+    background: var(--green);
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25);
+    cursor: pointer;
+    transition: transform 0.15s ease;
+  }
+  .phd-dot:hover,
+  .phd-dot:focus-visible,
+  .phd-dot.is-active { transform: translate(-50%, 50%) scale(1.35); z-index: 2; }
+  .phd-dot.is-active { background: #1d7a46; }
+  .phd-dot.is-now { animation: phd-pulse 2s ease-out infinite; }
+  @keyframes phd-pulse {
+    0%   { box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25), 0 0 0 0 rgba(47, 165, 101, 0.55); }
+    100% { box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25), 0 0 0 12px rgba(47, 165, 101, 0); }
+  }
+  .phd-dot::after {
+    content: attr(data-label);
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    white-space: nowrap;
+    font-size: 11px;
+    line-height: 1.3;
+    padding: 3px 7px;
+    border-radius: 5px;
+    background: rgba(20, 20, 20, 0.88);
+    color: #fff;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.12s ease;
+  }
+  .phd-dot.edge-l::after { left: -4px; transform: none; }
+  .phd-dot.edge-r::after { left: auto; right: -4px; transform: none; }
+  .phd-dot:hover::after,
+  .phd-dot:focus-visible::after { opacity: 1; }
+  .phd-years {
+    position: relative;
+    height: 1.6em;
+    margin: 0 7px;
+    font-size: 0.75em;
+    opacity: 0.65;
+  }
+  .phd-years span {
+    position: absolute;
+    top: 4px;
+    transform: translateX(-50%);
+  }
+  .phd-years span::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: -9px;
+    height: 6px;
+    border-left: 1px solid currentColor;
+  }
+  .phd-years span.start { transform: none; }
+  .phd-years span.end { transform: translateX(-100%); }
+  .phd-years span.start::before { left: 0; }
+  .phd-years span.end::before { left: 100%; }
+  .phd-hint { font-size: 0.78em; opacity: 0.6; margin: 0.2rem 0 0; }
+
+  /* ---------- Milestone list ---------- */
+  .timeline-tools { text-align: right; margin: 0 0 0.4rem; }
+  .timeline-tools button {
+    font: inherit;
+    font-size: 0.8em;
+    padding: 0.2rem 0.7rem;
+    border-radius: 999px;
+    border: 1px solid rgba(128, 128, 128, 0.4);
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+  }
   .timeline {
     list-style: none;
-    margin: 1.4rem 0;
+    margin: 0 0 1.4rem;
     padding: 0 0 0 1.4rem;
     border-left: 2px solid rgba(128, 128, 128, 0.35);
   }
   .timeline > li {
     position: relative;
-    margin: 0 0 1.8rem;
+    margin: 0 0 0.5rem;
+    border-radius: 8px;
+    transition: background-color 0.6s ease;
   }
-  .timeline > li:last-child { margin-bottom: 0; }
+  .timeline > li.is-flash { background-color: rgba(47, 165, 101, 0.14); }
   .timeline > li::before {
     content: "";
     position: absolute;
     left: calc(-1.4rem - 7px);
-    top: 0.35rem;
+    top: 0.75rem;
     width: 12px;
     height: 12px;
     border-radius: 50%;
-    background: currentColor;
-    opacity: 0.6;
+    background: #2fa565;
   }
+  .timeline summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.1rem 0.8rem;
+    padding: 0.45rem 2rem 0.45rem 0.5rem;
+    list-style: none;
+    cursor: pointer;
+    position: relative;
+    border-radius: 8px;
+  }
+  .timeline summary::-webkit-details-marker { display: none; }
+  .timeline summary:hover { background: rgba(128, 128, 128, 0.1); }
+  .timeline summary::after {
+    content: "";
+    position: absolute;
+    right: 0.7rem;
+    top: 50%;
+    width: 7px;
+    height: 7px;
+    border-right: 2px solid currentColor;
+    border-bottom: 2px solid currentColor;
+    opacity: 0.55;
+    transform: translateY(-70%) rotate(45deg);
+    transition: transform 0.2s ease;
+  }
+  .timeline details[open] > summary::after { transform: translateY(-30%) rotate(-135deg); }
   .timeline .when {
-    display: block;
-    font-size: 0.8em;
+    font-size: 0.78em;
     text-transform: uppercase;
     letter-spacing: 0.04em;
     opacity: 0.65;
+    min-width: 11.5em;
   }
-  .timeline h3 { margin: 0.15rem 0 0.4rem; }
-  .timeline p { margin: 0 0 0.6rem; }
+  .timeline .ttl { font-weight: 600; }
+  .timeline .tl-body { padding: 0.2rem 0.5rem 0.6rem; }
+  .timeline .tl-body p { margin: 0 0 0.6rem; }
   .timeline .more { font-size: 0.9em; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .phd-fill, .phd-dot, .timeline > li { transition: none; }
+    .phd-dot.is-now { animation: none; }
+  }
 </style>
 
 <section class="hero">
@@ -92,230 +250,293 @@ description: >-
 
   <h2>The story so far</h2>
 
-  <ol class="timeline">
-    <li>
-      <span class="when">October – December 2024</span>
-      <h3>Starting the PhD and collecting Manx</h3>
-      <p>
-        I started my PhD in October 2024. At that point Manx had no speech
-        recognition and no speech corpus of the kind such systems are trained
-        on, so the first job was gathering what existed: spoken dictionary
-        entries, broadcasts, interviews and folklore recordings. By December I
-        had around 300 hours of speech and 4.8 million words of text.
-      </p>
-      <p>
-        Very little of it looked like a standard training corpus. Some was
-        thousands of isolated words; the rest was long recordings with loosely
-        matching transcripts. Working out how to turn that material into
-        something a model could learn from became the starting point for
-        everything that followed.
-      </p>
-      <p class="more">
-        <a href="{{ '/projects/#manx-speech-corpus' | relative_url }}">More on the Manx speech corpus</a>
-      </p>
+  <!-- Progress bar: filled to today's date and populated from the list below by the script at the end of the page. -->
+  <div class="phd-bar" id="phd-bar" hidden>
+    <div class="phd-head">
+      <span class="label">PhD: October 2024 to April 2028</span>
+      <span class="pct" id="phd-pct"></span>
+    </div>
+    <div class="phd-track-wrap">
+      <div class="phd-track"><div class="phd-fill"></div></div>
+      <div class="phd-dots"></div>
+    </div>
+    <div class="phd-years"></div>
+    <p class="phd-hint">Click a milestone to see what happened.</p>
+  </div>
+
+  <div class="timeline-tools" id="timeline-tools" hidden>
+    <button type="button" id="timeline-toggle">Expand all</button>
+  </div>
+
+  <ol class="timeline" id="timeline">
+    <li data-date="2024-10">
+      <details>
+        <summary><span class="when">October – December 2024</span><span class="ttl">Starting the PhD and collecting Manx</span></summary>
+        <div class="tl-body">
+          <p>
+            I started my PhD in October 2024. At that point Manx had no speech
+            recognition and no speech corpus of the kind such systems are trained
+            on, so the first job was gathering what existed: spoken dictionary
+            entries, broadcasts, interviews and folklore recordings. By December I
+            had around 300 hours of speech and 4.8 million words of text.
+          </p>
+          <p>
+            Very little of it looked like a standard training corpus. Some was
+            thousands of isolated words; the rest was long recordings with loosely
+            matching transcripts. Working out how to turn that material into
+            something a model could learn from became the starting point for
+            everything that followed.
+          </p>
+          <p class="more">
+            <a href="{{ '/projects/#manx-speech-corpus' | relative_url }}">More on the Manx speech corpus</a>
+          </p>
+        </div>
+      </details>
     </li>
 
-    <li>
-      <span class="when">January – March 2025</span>
-      <h3>Manx Forge and learning the tools</h3>
-      <p>
-        In January I set up <a href="https://manx-forge.github.io/">Manx Forge</a>,
-        a GitHub page intended as a one-stop shop for Manx language resources.
-      </p>
-      <p>
-        To make use of the material I'd collected, I learnt Kaldi, the speech
-        recognition toolkit, and forced alignment, the technique of lining up
-        a transcript with the exact moments each word is spoken in a
-        recording. Alignment became the key that unlocked the long recordings.
-      </p>
+    <li data-date="2025-01">
+      <details>
+        <summary><span class="when">January – March 2025</span><span class="ttl">Manx Forge and learning the tools</span></summary>
+        <div class="tl-body">
+          <p>
+            In January I set up <a href="https://manx-forge.github.io/">Manx Forge</a>,
+            a GitHub page intended as a one-stop shop for Manx language resources.
+          </p>
+          <p>
+            To make use of the material I'd collected, I learnt Kaldi, the speech
+            recognition toolkit, and forced alignment, the technique of lining up
+            a transcript with the exact moments each word is spoken in a
+            recording. Alignment became the key that unlocked the long recordings.
+          </p>
+        </div>
+      </details>
     </li>
 
-    <li>
-      <span class="when">February – June 2025</span>
-      <h3>The world's first Manx ASR</h3>
-      <p>
-        Using a spoken dictionary as the seed, I built the first speech
-        recognition systems for Manx in Kaldi. Just 40 minutes of dictionary audio was
-        enough for a usable baseline (under 50% word error rate), and as little
-        as 8 minutes was enough to begin aligning the long-form recordings and
-        turning them into new training data. With domain-matched segments
-        added, the system reached under 25% word error rate. One lesson stood
-        out: variety of speakers, styles and sources mattered more than sheer
-        quantity of audio.
-      </p>
+    <li data-date="2025-02">
+      <details>
+        <summary><span class="when">February – June 2025</span><span class="ttl">The world's first Manx ASR</span></summary>
+        <div class="tl-body">
+          <p>
+            Using a spoken dictionary as the seed, I built the first speech
+            recognition systems for Manx in Kaldi. Just 40 minutes of dictionary audio was
+            enough for a usable baseline (under 50% word error rate), and as little
+            as 8 minutes was enough to begin aligning the long-form recordings and
+            turning them into new training data. With domain-matched segments
+            added, the system reached under 25% word error rate. One lesson stood
+            out: variety of speakers, styles and sources mattered more than sheer
+            quantity of audio.
+          </p>
+        </div>
+      </details>
     </li>
 
-    <li>
-      <span class="when">May 2025</span>
-      <h3>Getting out there</h3>
-      <p>
-        I took the work on the road for the first time at
-        <a href="https://sites.google.com/view/ukis2026/home">UKIS</a>, the
-        annual UK and Ireland speech conference, and spent a lot of time
-        talking to other researchers about what I was building.
-      </p>
+    <li data-date="2025-05">
+      <details>
+        <summary><span class="when">May 2025</span><span class="ttl">Getting out there</span></summary>
+        <div class="tl-body">
+          <p>
+            I took the work on the road for the first time at
+            <a href="https://sites.google.com/view/ukis2026/home">UKIS</a>, the
+            annual UK and Ireland speech conference, and spent a lot of time
+            talking to other researchers about what I was building.
+          </p>
+        </div>
+      </details>
     </li>
 
-    <li>
-      <span class="when">June – July 2025</span>
-      <h3>First demo and feedback</h3>
-      <p>
-        I recorded the first public demonstration of Manx speech recognition,
-        <a href="https://www.youtube.com/watch?v=0Gmi__3ZZFI">transcribing a
-        local radio show</a>, and spent July gathering feedback on what was
-        useful and what wasn't.
-      </p>
+    <li data-date="2025-06">
+      <details>
+        <summary><span class="when">June – July 2025</span><span class="ttl">First demo and feedback</span></summary>
+        <div class="tl-body">
+          <p>
+            I recorded the first public demonstration of Manx speech recognition,
+            <a href="https://www.youtube.com/watch?v=0Gmi__3ZZFI">transcribing a
+            local radio show</a>, and spent July gathering feedback on what was
+            useful and what wasn't.
+          </p>
+        </div>
+      </details>
     </li>
 
-    <li>
-      <span class="when">August 2025</span>
-      <h3>The world's first Cornish ASR</h3>
-      <p>
-        To check the approach wasn't specific to Manx, I applied it to Cornish,
-        producing the first speech recognition system for that language too.
-        Together the two projects produced the first utterance-level speech
-        corpora for Manx (18 hours) and Cornish (39 hours).
-      </p>
+    <li data-date="2025-08">
+      <details>
+        <summary><span class="when">August 2025</span><span class="ttl">The world's first Cornish ASR</span></summary>
+        <div class="tl-body">
+          <p>
+            To check the approach wasn't specific to Manx, I applied it to Cornish,
+            producing the first speech recognition system for that language too.
+            Together the two projects produced the first utterance-level speech
+            corpora for Manx (18 hours) and Cornish (39 hours).
+          </p>
+        </div>
+      </details>
     </li>
 
-    <li>
-      <span class="when">September – October 2025</span>
-      <h3>First paper</h3>
-      <p>
-        I wrote up the Manx and Cornish work and submitted it to ICASSP in
-        September, then posted it as a
-        <a href="https://arxiv.org/abs/2510.04832">preprint</a> in October.
-      </p>
-      <p class="more">
-        <a href="{{ '/projects/#endangered-language-asr' | relative_url }}">More on this project</a>
-      </p>
+    <li data-date="2025-09">
+      <details>
+        <summary><span class="when">September – October 2025</span><span class="ttl">First paper</span></summary>
+        <div class="tl-body">
+          <p>
+            I wrote up the Manx and Cornish work and submitted it to ICASSP in
+            September, then posted it as a
+            <a href="https://arxiv.org/abs/2510.04832">preprint</a> in October.
+          </p>
+          <p class="more">
+            <a href="{{ '/projects/#endangered-language-asr' | relative_url }}">More on this project</a>
+          </p>
+        </div>
+      </details>
     </li>
 
-    <li>
-      <span class="when">January 2026</span>
-      <h3>The first Manx text-to-speech</h3>
-      <p>
-        I built the first text-to-speech system for Manx: type in Manx text and
-        hear it read aloud.
-        <a href="https://www.youtube.com/shorts/3GyQQlM79bc">Watch the demo</a>.
-        It was covered by
-        <a href="https://www.bbc.co.uk/news/articles/c2k9l8y1108o">BBC News</a>,
-        <a href="https://www.iomtoday.co.im/gef/meet-the-manx-phd-student-teaching-ai-how-to-speak-manx-954944">Isle of Man Today</a>
-        and
-        <a href="https://www.digitalisleofman.com/ai-news/new-manx-speech-and-language-technology-gaelg-ai/">Digital Isle of Man</a>.
-      </p>
+    <li data-date="2026-01">
+      <details>
+        <summary><span class="when">January 2026</span><span class="ttl">The first Manx text-to-speech</span></summary>
+        <div class="tl-body">
+          <p>
+            I built the first text-to-speech system for Manx: type in Manx text and
+            hear it read aloud.
+            <a href="https://www.youtube.com/shorts/3GyQQlM79bc">Watch the demo</a>.
+            It was covered by
+            <a href="https://www.bbc.co.uk/news/articles/c2k9l8y1108o">BBC News</a>,
+            <a href="https://www.iomtoday.co.im/gef/meet-the-manx-phd-student-teaching-ai-how-to-speak-manx-954944">Isle of Man Today</a>
+            and
+            <a href="https://www.digitalisleofman.com/ai-news/new-manx-speech-and-language-technology-gaelg-ai/">Digital Isle of Man</a>.
+          </p>
+        </div>
+      </details>
     </li>
 
-    <li>
-      <span class="when">February 2026</span>
-      <h3>Scaling up to five languages</h3>
-      <p>
-        ICASSP didn't accept the first paper, so I reworked it for Interspeech
-        and made it bigger. The Manx and Cornish results raised an obvious
-        question: was this a lucky case, or something general? To find out, I
-        added three more languages: Hawaiian, Jejueo (from Jeju Island in
-        Korea) and Mohawk. Jejueo and Mohawk had never been supported by any
-        speech recognition system before. The paper,
-        <a href="https://www.isca-archive.org/interspeech_2026/bartley26_interspeech.html"><em>Bootstrapping
-        Endangered Language ASR with Short-Form Corpora</em></a>, contributes:
-      </p>
-      <ul>
-        <li>
-          evidence, using English, that word-level recordings are a viable
-          substitute for the sentence-level data ASR normally needs, with
-          accuracy holding steady until segments drop below about a second;
-        </li>
-        <li>
-          the same short-form to long-form pipeline applied to five very
-          different languages (Cornish, Hawaiian, Jejueo, Manx and Mohawk),
-          with a new open corpus released for each;
-        </li>
-        <li>
-          systems trained entirely on CPU that beat zero-shot Omnilingual ASR,
-          MMS and Whisper on out-of-domain tests in nearly every language, at a
-          fraction of the compute.
-        </li>
-      </ul>
-      <p>
-        The short version: the barrier to entry for endangered-language ASR is
-        much lower than commonly assumed, and the resources communities already
-        create can be turned into working transcription tools.
-      </p>
-      <p class="more">
-        <a href="{{ '/projects/#endangered-language-asr' | relative_url }}">More on this project</a>
-      </p>
+    <li data-date="2026-02">
+      <details>
+        <summary><span class="when">February 2026</span><span class="ttl">Scaling up to five languages</span></summary>
+        <div class="tl-body">
+          <p>
+            ICASSP didn't accept the first paper, so I reworked it for Interspeech
+            and made it bigger. The Manx and Cornish results raised an obvious
+            question: was this a lucky case, or something general? To find out, I
+            added three more languages: Hawaiian, Jejueo (from Jeju Island in
+            Korea) and Mohawk. Jejueo and Mohawk had never been supported by any
+            speech recognition system before. The paper,
+            <a href="https://www.isca-archive.org/interspeech_2026/bartley26_interspeech.html"><em>Bootstrapping
+            Endangered Language ASR with Short-Form Corpora</em></a>, contributes:
+          </p>
+          <ul>
+            <li>
+              evidence, using English, that word-level recordings are a viable
+              substitute for the sentence-level data ASR normally needs, with
+              accuracy holding steady until segments drop below about a second;
+            </li>
+            <li>
+              the same short-form to long-form pipeline applied to five very
+              different languages (Cornish, Hawaiian, Jejueo, Manx and Mohawk),
+              with a new open corpus released for each;
+            </li>
+            <li>
+              systems trained entirely on CPU that beat zero-shot Omnilingual ASR,
+              MMS and Whisper on out-of-domain tests in nearly every language, at a
+              fraction of the compute.
+            </li>
+          </ul>
+          <p>
+            The short version: the barrier to entry for endangered-language ASR is
+            much lower than commonly assumed, and the resources communities already
+            create can be turned into working transcription tools.
+          </p>
+          <p class="more">
+            <a href="{{ '/projects/#endangered-language-asr' | relative_url }}">More on this project</a>
+          </p>
+        </div>
+      </details>
     </li>
 
-    <li>
-      <span class="when">April 2026</span>
-      <h3>Interceltic Business Forum</h3>
-      <p>
-        I spoke at the Interceltic Business Forum about my work on endangered
-        languages, focusing on Manx.
-        <a href="https://www.linkedin.com/feed/update/urn:li:share:7450562341156540416/">See the post</a>.
-      </p>
+    <li data-date="2026-04">
+      <details>
+        <summary><span class="when">April 2026</span><span class="ttl">Interceltic Business Forum</span></summary>
+        <div class="tl-body">
+          <p>
+            I spoke at the Interceltic Business Forum about my work on endangered
+            languages, focusing on Manx.
+            <a href="https://www.linkedin.com/feed/update/urn:li:share:7450562341156540416/">See the post</a>.
+          </p>
+        </div>
+      </details>
     </li>
 
-    <li>
-      <span class="when">June 2026</span>
-      <h3>Accepted to Interspeech</h3>
-      <p>
-        The paper was accepted to Interspeech 2026, one of the main
-        international conferences on speech science and technology. It is now
-        available in the
-        <a href="https://www.isca-archive.org/interspeech_2026/bartley26_interspeech.html">ISCA Archive</a>.
-      </p>
+    <li data-date="2026-06">
+      <details>
+        <summary><span class="when">June 2026</span><span class="ttl">Accepted to Interspeech</span></summary>
+        <div class="tl-body">
+          <p>
+            The paper was accepted to Interspeech 2026, one of the main
+            international conferences on speech science and technology. It is now
+            available in the
+            <a href="https://www.isca-archive.org/interspeech_2026/bartley26_interspeech.html">ISCA Archive</a>.
+          </p>
+        </div>
+      </details>
     </li>
 
-    <li>
-      <span class="when">July 2026</span>
-      <h3>Launching Gaelg AI</h3>
-      <p>
-        I launched <a href="https://gaelgai.im">gaelgai.im</a>, a free platform
-        that brings the Manx models from my research together in one place:
-        text-to-speech, speech recognition, translation and audio timestamping.
-      </p>
-      <p class="more">
-        <a href="{{ '/blog/2026/07/gaelg-ai-1-0-launches/' | relative_url }}">Read the launch post</a>
-        · <a href="{{ '/projects/#gaelg-ai' | relative_url }}">Project details</a>
-      </p>
+    <li data-date="2026-07">
+      <details>
+        <summary><span class="when">July 2026</span><span class="ttl">Launching Gaelg AI</span></summary>
+        <div class="tl-body">
+          <p>
+            I launched <a href="https://gaelgai.im">gaelgai.im</a>, a free platform
+            that brings the Manx models from my research together in one place:
+            text-to-speech, speech recognition, translation and audio timestamping.
+          </p>
+          <p class="more">
+            <a href="{{ '/blog/2026/07/gaelg-ai-1-0-launches/' | relative_url }}">Read the launch post</a>
+            · <a href="{{ '/projects/#gaelg-ai' | relative_url }}">Project details</a>
+          </p>
+        </div>
+      </details>
     </li>
 
-    <li>
-      <span class="when">September 2026</span>
-      <h3>A searchable Manx speech corpus</h3>
-      <p>
-        I released a <a href="https://speech.gaelg.im/speech">searchable speech
-        corpus of Manx</a>, covering all 350+ hours of Manx speech I could find
-        on the web. Search for a word or phrase and hear it spoken in real
-        recordings.
-      </p>
-      <!-- TODO: link to the corpus blog post once written -->
-      <p class="more">
-        <a href="{{ '/projects/#manx-speech-corpus' | relative_url }}">Project details</a>
-      </p>
+    <li data-date="2026-09">
+      <details>
+        <summary><span class="when">September 2026</span><span class="ttl">A searchable Manx speech corpus</span></summary>
+        <div class="tl-body">
+          <p>
+            I released a <a href="https://speech.gaelg.im/speech">searchable speech
+            corpus of Manx</a>, covering all 350+ hours of Manx speech I could find
+            on the web. Search for a word or phrase and hear it spoken in real
+            recordings.
+          </p>
+          <!-- TODO: link to the corpus blog post once written -->
+          <p class="more">
+            <a href="{{ '/projects/#manx-speech-corpus' | relative_url }}">Project details</a>
+          </p>
+        </div>
+      </details>
     </li>
 
-    <li>
-      <span class="when">September 2026</span>
-      <h3>Presenting in Sydney</h3>
-      <p>
-        I presented the work at Interspeech 2026 in Sydney, and got to talk
-        endangered languages with people working on everything from
-        foundation models to fieldwork.
-      </p>
-      <!-- TODO: link to the Interspeech blog post once written -->
-      <p class="more"><em>A write-up of the conference is coming soon.</em></p>
+    <li data-date="2026-09">
+      <details>
+        <summary><span class="when">September 2026</span><span class="ttl">Presenting in Sydney</span></summary>
+        <div class="tl-body">
+          <p>
+            I presented the work at Interspeech 2026 in Sydney, and got to talk
+            endangered languages with people working on everything from
+            foundation models to fieldwork.
+          </p>
+          <!-- TODO: link to the Interspeech blog post once written -->
+          <p class="more"><em>A write-up of the conference is coming soon.</em></p>
+        </div>
+      </details>
     </li>
 
-    <li>
-      <span class="when">Now</span>
-      <h3>Tackling domain mismatch</h3>
-      <p>
-        My current work picks up the biggest weakness the Interspeech paper
-        exposed, using voice conversion to generate training data for the kinds
-        of speech the systems struggle with. More on that below.
-      </p>
+    <li data-date="now">
+      <details>
+        <summary><span class="when">Now</span><span class="ttl">Tackling domain mismatch</span></summary>
+        <div class="tl-body">
+          <p>
+            My current work picks up the biggest weakness the Interspeech paper
+            exposed, using voice conversion to generate training data for the kinds
+            of speech the systems struggle with. More on that below.
+          </p>
+        </div>
+      </details>
     </li>
   </ol>
 
@@ -433,3 +654,119 @@ description: >-
     </li>
   </ul>
 </section>
+
+<script>
+  // Interactive timeline: fills the PhD bar up to today's date, places a dot
+  // for each milestone in #timeline, and opens the matching dropdown when a
+  // dot is clicked. Without JS the bar stays hidden and the list still works.
+  (function () {
+    var START = new Date(2024, 9, 1);   // 1 Oct 2024
+    var END = new Date(2028, 4, 1);     // end of Apr 2028
+    var bar = document.getElementById("phd-bar");
+    var list = document.getElementById("timeline");
+    if (!bar || !list) return;
+
+    var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    var today = new Date();
+
+    function pct(d) {
+      return Math.max(0, Math.min(100, (d - START) / (END - START) * 100));
+    }
+    // "YYYY-MM" -> middle of that month; "now" -> today.
+    function parse(s) {
+      if (s === "now") return today;
+      var p = s.split("-");
+      return new Date(+p[0], +p[1] - 1, 15);
+    }
+
+    var todayPct = pct(today);
+    bar.style.setProperty("--today", todayPct + "%");
+    document.getElementById("phd-pct").textContent =
+      Math.floor(todayPct) + "% of the way through";
+
+    // Year ticks, plus start and end labels.
+    var years = bar.querySelector(".phd-years");
+    function tick(text, d, cls) {
+      var s = document.createElement("span");
+      s.textContent = text;
+      s.style.left = pct(d) + "%";
+      if (cls) s.className = cls;
+      years.appendChild(s);
+    }
+    tick("Oct 2024", START, "start");
+    [2026, 2027].forEach(function (y) { tick(String(y), new Date(y, 0, 1)); });
+    tick("Apr 2028", END, "end");
+
+    // One dot per milestone.
+    var dotsBox = bar.querySelector(".phd-dots");
+    var items = Array.prototype.slice.call(list.children);
+    var dots = items.map(function (li) {
+      var details = li.querySelector("details");
+      var when = li.querySelector(".when").textContent;
+      var title = li.querySelector(".ttl").textContent;
+      var x = pct(parse(li.getAttribute("data-date")));
+
+      var dot = document.createElement("button");
+      dot.type = "button";
+      dot.className = "phd-dot";
+      if (li.getAttribute("data-date") === "now") dot.classList.add("is-now");
+      if (x < 12) dot.classList.add("edge-l");
+      if (x > 88) dot.classList.add("edge-r");
+      dot.setAttribute("aria-label", when + ": " + title);
+      dot.setAttribute("data-label", title);
+      dot.style.setProperty("--x", x + "%");
+      dot._x = x;
+
+      dot.addEventListener("click", function () {
+        details.open = true;
+        li.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "center" });
+        li.classList.add("is-flash");
+        setTimeout(function () { li.classList.remove("is-flash"); }, 1200);
+      });
+      details.addEventListener("toggle", function () {
+        dot.classList.toggle("is-active", details.open);
+        syncToggleLabel();
+      });
+
+      dotsBox.appendChild(dot);
+      return dot;
+    });
+
+    // Stack dots that would overlap into rows above the track.
+    function stack() {
+      var width = dotsBox.clientWidth || 1;
+      var minGap = 16 / width * 100;
+      var lastInRow = [];
+      dots.forEach(function (dot) {
+        var row = 0;
+        while (lastInRow[row] !== undefined && dot._x - lastInRow[row] < minGap) row++;
+        lastInRow[row] = dot._x;
+        dot.style.setProperty("--row", row);
+      });
+      bar.style.setProperty("--rows", lastInRow.length);
+    }
+
+    // Expand / collapse all.
+    var tools = document.getElementById("timeline-tools");
+    var toggle = document.getElementById("timeline-toggle");
+    var allDetails = list.querySelectorAll("details");
+    function allOpen() {
+      return Array.prototype.every.call(allDetails, function (d) { return d.open; });
+    }
+    function syncToggleLabel() {
+      toggle.textContent = allOpen() ? "Collapse all" : "Expand all";
+    }
+    toggle.addEventListener("click", function () {
+      var open = !allOpen();
+      Array.prototype.forEach.call(allDetails, function (d) { d.open = open; });
+    });
+
+    bar.hidden = false;
+    tools.hidden = false;
+    stack();
+    window.addEventListener("resize", stack);
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () { bar.classList.add("is-ready"); });
+    });
+  })();
+</script>
