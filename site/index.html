@@ -2,59 +2,311 @@
 layout: default
 title: Chris Bartley — Endangered Language Technology Researcher
 description: >-
-  PhD researcher at the University of Sheffield building speech and language
-  technology for endangered languages. Creator of Gaelg AI, a suite of AI tools
-  for Manx Gaelic.
+  PhD researcher at the University of Sheffield building speech technology for
+  under-resourced and critically endangered languages, starting with Manx
+  Gaelic. Creator of Gaelg AI.
 ---
 
+<style>
+  .timeline {
+    list-style: none;
+    margin: 1.4rem 0;
+    padding: 0 0 0 1.4rem;
+    border-left: 2px solid rgba(128, 128, 128, 0.35);
+  }
+  .timeline > li {
+    position: relative;
+    margin: 0 0 1.8rem;
+  }
+  .timeline > li:last-child { margin-bottom: 0; }
+  .timeline > li::before {
+    content: "";
+    position: absolute;
+    left: calc(-1.4rem - 7px);
+    top: 0.35rem;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: currentColor;
+    opacity: 0.6;
+  }
+  .timeline .when {
+    display: block;
+    font-size: 0.8em;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    opacity: 0.65;
+  }
+  .timeline h3 { margin: 0.15rem 0 0.4rem; }
+  .timeline p { margin: 0 0 0.6rem; }
+  .timeline .more { font-size: 0.9em; }
+</style>
+
 <section class="hero">
-  <h1>Chris Bartley</h1>
+  <h1>Hi, I'm Chris.</h1>
   <p class="subtitle">
-    PhD researcher at the University of Sheffield, building speech and language
-    technology to help preserve endangered languages, starting with
-    <a href="https://gaelgai.im">Manx Gaelic</a>.
+    I'm a PhD researcher at the University of Sheffield, building speech
+    technology for languages that most technology leaves behind, starting with
+    Manx Gaelic.
   </p>
 </section>
 
 <section class="section">
-  <h2>Research interests</h2>
+  <h2>About me</h2>
 
   <p>
-    My doctoral research at the University of Sheffield focuses on making modern
-    speech and language technology accessible to endangered and low-resource
-    languages. I work primarily with <strong>Manx Gaelic (Gaelg)</strong>, a
-    Celtic language from the Isle of Man, but the methods I develop are designed
-    to be language-agnostic and transferable.
+    With a background in linguistics, I have long been fascinated by how
+    language reflects our culture and patterns of thought. I started out
+    studying modern languages (Spanish, French and Mandarin), then spent a few
+    years working in financial crime, including a spell on the Isle of Man,
+    before going back to university for an MA in Linguistics at Manchester.
   </p>
 
   <p>
-    <strong>Low-resource speech technology</strong> — Building ASR, TTS, and
-    voice conversion systems that bootstrap from very small corpora (tens of
-    minutes to a few hours of audio) using semi-supervised learning, data
-    augmentation, and cross-lingual transfer from related languages.
+    The computational side of that degree changed the direction of things. I
+    could see that the tools I was learning about could do real good for
+    languages the technology industry mostly ignores, and that curiosity
+    carried me into computer science. Today I'm a PhD researcher in the
+    <a href="https://www.sheffield.ac.uk/dcs/research/groups/spandh">Speech and Hearing Research Group</a>
+    at Sheffield, where I develop computational methods to support the
+    revitalisation of under-resourced and critically endangered languages.
   </p>
+
+  <h2>Why endangered languages</h2>
+
   <p>
-    <strong>Endangered language technology</strong> — Bringing these methods to
-    endangered and minority languages, primarily Manx Gaelic, and building
-    practical tools for revitalisation such as speech synthesis, recognition,
-    and translation. The approaches are language-agnostic and transfer across
-    the Celtic family and beyond.
+    Nearly half of the world's 7,000 or so languages are endangered. When a
+    language falls silent, a community loses a way of seeing the world, along
+    with stories, songs and knowledge that only ever existed in that language.
   </p>
+
   <p>
-    <strong>Domain adaptation</strong> — Closing the gap between the clean, read
-    speech that models are trained on and the spontaneous speech that dominates
-    real recordings. I use voice conversion (Grad-VC / DiffVC) as offline data
-    augmentation, training on cross-speaker, content-matched word and phone
-    pairs rather than same-voice reconstruction.
-    <a href="{{ '/research/pair-corpora/' | relative_url }}">Listen to sample training pairs</a>.
+    Manx is a good example of what is at stake, and of what is possible. Its
+    last native speaker, Ned Maddrell, died in 1974. Thanks to decades of work
+    by the community, Manx is spoken again today, taught in schools and used
+    in a Manx-medium primary school. What it doesn't have is the technology
+    that speakers of larger languages take for granted: speech recognition to
+    unlock archive recordings, or synthesis to help learners hear how words
+    should sound.
   </p>
+
   <p>
-    <strong>Unsupervised learning</strong> — Speech models that learn from audio
-    without transcriptions, with a focus on graphemic approaches, including a
-    graphemic formulation of wav2vec-U 2.0 that maps speech directly to
-    characters rather than phonemes, removing the dependence on a phonemic
-    lexicon.
+    The obstacle is rarely a total lack of recordings. It is that the
+    recordings exist in forms that modern speech technology isn't built to
+    use. Most of my work comes back to that gap.
   </p>
+
+  <h2>The story so far</h2>
+
+  <ol class="timeline">
+    <li>
+      <span class="when">2024</span>
+      <h3>Collecting Manx</h3>
+      <p>
+        When I started, Manx had no speech recognition and no speech corpus of
+        the kind such systems are trained on. So the first job was gathering
+        what existed: spoken dictionary entries, broadcasts, interviews and
+        folklore recordings, more than 300 hours of audio in all.
+      </p>
+      <p>
+        Very little of it looked like a standard training corpus. Some was
+        thousands of isolated words; the rest was long recordings with loosely
+        matching transcripts. Working out how to turn that material into
+        something a model could learn from became the starting point for
+        everything that followed.
+      </p>
+      <p class="more">
+        <a href="{{ '/projects/#manx-speech-corpus' | relative_url }}">More on the Manx speech corpus</a>
+      </p>
+    </li>
+
+    <li>
+      <span class="when">2025</span>
+      <h3>A first ASR system for Manx</h3>
+      <p>
+        Using a spoken dictionary as the seed, I built the first speech
+        recognition systems for Manx and for Cornish. Just 40 minutes of
+        dictionary audio was enough for a usable baseline, and as little as 8
+        minutes was enough to begin aligning the long-form recordings and
+        turning them into new training data. I wrote this up as a
+        <a href="https://arxiv.org/abs/2510.04832">preprint</a>.
+      </p>
+    </li>
+
+    <li>
+      <span class="when">2026</span>
+      <h3>Interspeech paper</h3>
+      <p>
+        The Manx results raised an obvious question: was this a lucky case, or
+        something general? My Interspeech 2026 paper,
+        <a href="https://www.isca-archive.org/interspeech_2026/bartley26_interspeech.html"><em>Bootstrapping
+        Endangered Language ASR with Short-Form Corpora</em></a>, set out to
+        answer it. It contributes:
+      </p>
+      <ul>
+        <li>
+          evidence, using English, that word-level recordings are a viable
+          substitute for the sentence-level data ASR normally needs, with
+          accuracy holding steady until segments drop below about a second;
+        </li>
+        <li>
+          the same short-form to long-form pipeline applied to five very
+          different languages (Cornish, Hawaiian, Jejueo, Manx and Mohawk),
+          with a new open corpus released for each;
+        </li>
+        <li>
+          systems trained entirely on CPU that beat zero-shot Omnilingual ASR,
+          MMS and Whisper on out-of-domain tests in nearly every language, at a
+          fraction of the compute.
+        </li>
+      </ul>
+      <p>
+        The short version: the barrier to entry for endangered-language ASR is
+        much lower than commonly assumed, and the resources communities already
+        create can be turned into working transcription tools.
+      </p>
+      <p class="more">
+        <a href="{{ '/projects/#endangered-language-asr' | relative_url }}">More on this project</a>
+        · <a href="https://www.isca-archive.org/interspeech_2026/bartley26_interspeech.html">Read the paper (ISCA Archive)</a>
+      </p>
+    </li>
+
+    <li>
+      <span class="when">2026</span>
+      <h3>Presenting at Interspeech</h3>
+      <p>
+        I presented the work at Interspeech 2026 in Sydney, and got to talk
+        endangered languages with people working on everything from
+        foundation models to fieldwork.
+      </p>
+      <!-- TODO: link to the Interspeech blog post once written -->
+      <p class="more"><em>A write-up of the conference is coming soon.</em></p>
+    </li>
+  </ol>
+
+  <h2>What's next: the domain problem</h2>
+
+  <p>
+    Building a working system exposed the next challenge. ASR is good at
+    transcribing speech that resembles what it was trained on, and much worse
+    at anything else. This is the problem of <strong>domain mismatch</strong>.
+    In endangered languages it bites hard, because the data that exists is
+    skewed towards whatever happened to be recorded, usually careful, read
+    speech from a handful of speakers. Real archives are full of spontaneous
+    conversation: hesitations, fast and reduced speech, and voices the model
+    has never heard.
+  </p>
+
+  <p>
+    The Interspeech paper shows this clearly. Across all five languages, error
+    rates on out-of-domain test sets sit well above in-domain ones; for
+    Cornish, a system scoring under 8% word error rate on read speech climbs
+    above 70% on a spontaneous interview. Often it is this mismatch, not the
+    amount of data, that decides whether a system is actually useful.
+  </p>
+
+  <p>
+    There are several established ways to narrow the gap:
+  </p>
+
+  <ul>
+    <li>
+      <strong>Collect in-domain data</strong>, the most direct fix, but slow
+      and costly when there are few speakers to record and transcribe.
+    </li>
+    <li>
+      <strong>Fine-tune or adapt</strong> a trained model on a small amount of
+      target-domain data.
+    </li>
+    <li>
+      <strong>Self-training</strong>, where a model transcribes untranscribed
+      target-domain audio and learns from its own best guesses.
+    </li>
+    <li>
+      <strong>Data augmentation</strong>, which creates new training examples
+      from existing ones: changing speed, masking parts of the spectrogram,
+      adding noise and reverberation, or synthesising speech with TTS.
+    </li>
+  </ul>
+
+  <p>
+    Augmentation is especially attractive for endangered languages because it
+    needs no new recordings. The catch is that standard augmentation changes
+    the <em>conditions</em> around speech, not the way people actually speak.
+    Speeding up a read sentence doesn't make it sound spontaneous.
+  </p>
+
+  <h2>My approach: converting speech between domains</h2>
+
+  <p>
+    I'm working on data augmentation through <strong>speech-to-speech
+    conversion</strong>: taking the read speech a system already has and
+    converting aspects of it (who is speaking, their accent, their speaking
+    style) towards the domain the system will face, while keeping the words
+    the same. The converted audio keeps its transcript, so it can go straight
+    into training.
+  </p>
+
+  <p>
+    The difficulty is teaching a model to do the conversion. The cleanest way
+    is to show it pairs of recordings that say the same thing but differ in
+    one attribute. Whole sentences almost never repeat across speakers, so
+    such pairs are widely assumed to be unobtainable, and most of the field
+    turns to unsupervised methods instead. Those work well for changing a
+    voice, but struggle with accent and style, which are about <em>how</em>
+    something is said.
+  </p>
+
+  <p>
+    My answer is a <strong>sub-utterance pairing scheme</strong>. Rather than
+    looking for whole matching sentences, I slide a short window over the
+    transcripts of an ordinary corpus and match identical runs of words or
+    phones spoken by different speakers. Short sequences recur constantly, so
+    this recovers a large amount of real, paired training data from corpora
+    that were never designed for it, with no extra recording or synthesis.
+    Shorter windows give many more pairs but less context to learn from, and
+    finding the balance between the two is part of the work.
+  </p>
+
+  <p>
+    Trained this way, diffusion-based conversion models handle speaker,
+    accent and speaking-style conversion, and the converted speech can be
+    used to train ASR across a range from read to spontaneous speech. This is
+    the subject of the paper I'm currently preparing for ICASSP 2027.
+  </p>
+
+  <p>
+    You can hear both halves of it:
+    <a href="{{ '/research/pair-corpora/' | relative_url }}">example training pairs</a>
+    and <a href="{{ '/samples/generated-samples/' | relative_url }}">converted speech samples</a>.
+  </p>
+
+  <p class="more">
+    <a href="{{ '/projects/#voice-conversion-domain-adaptation' | relative_url }}">More on this project</a>
+  </p>
+
+  <h2>Things I've built</h2>
+
+  <p>
+    I want this research to end up in people's hands, not just in papers.
+  </p>
+
+  <ul>
+    <li>
+      <strong><a href="https://gaelgai.im">Gaelg AI</a></strong> is a free web
+      platform of AI tools for Manx: text-to-speech, speech recognition,
+      translation, and audio timestamping, all built on the models from my
+      research.
+      <a href="{{ '/projects/#gaelg-ai' | relative_url }}">Project details</a>
+    </li>
+    <li>
+      <strong>A searchable speech corpus of Manx</strong> lets you search
+      recordings of spoken Manx by text and listen to every place a word or
+      phrase is used, built from the aligned corpus described above.
+      <a href="{{ '/projects/#manx-speech-corpus' | relative_url }}">Project details</a>
+      <!-- TODO: link to the corpus blog post once written -->
+    </li>
+  </ul>
 
   <h2>Publications</h2>
 
@@ -64,8 +316,8 @@ description: >-
       <strong>Christopher Bartley</strong>, Anton Ragni<br>
       <span class="pub-venue">Interspeech 2026</span>
       <div class="pub-links">
-        <!-- <a href="#">Paper</a> <a href="#">Poster</a> <a href="#">Code</a> -->
-        <em>Links to follow after publication</em>
+        <a href="https://www.isca-archive.org/interspeech_2026/bartley26_interspeech.html">ISCA Archive</a>
+        · <a href="https://doi.org/10.21437/Interspeech.2026-1302">DOI</a>
       </div>
     </li>
     <li>
@@ -76,14 +328,5 @@ description: >-
         <a href="https://arxiv.org/abs/2510.04832">arXiv</a>
       </div>
     </li>
-  </ul>
-
-  <p><em>Further publications in preparation.</em></p>
-
-  <h2>Affiliations</h2>
-
-  <ul>
-    <li><a href="https://www.sheffield.ac.uk/cs">Department of Computer Science, University of Sheffield</a></li>
-    <li><a href="https://www.sheffield.ac.uk/dcs/research/groups/spandh">Speech and Hearing Research Group (SpandH)</a></li>
   </ul>
 </section>

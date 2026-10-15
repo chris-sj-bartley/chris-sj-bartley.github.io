@@ -155,7 +155,7 @@ English (native) · Spanish (professional) · French (professional) · Manx (pro
   <li>
     <span class="pub-title">Bootstrapping Endangered Language ASR with Short-Form Corpora</span><br>
     <strong>Christopher Bartley</strong>, Anton Ragni<br>
-    <span class="pub-venue">Interspeech 2026</span>
+    <span class="pub-venue">Interspeech 2026</span> · <a href="https://www.isca-archive.org/interspeech_2026/bartley26_interspeech.html">ISCA Archive</a>
   </li>
   <li>
     <span class="pub-title">How I Built ASR for Endangered Languages with a Spoken Dictionary</span><br>
