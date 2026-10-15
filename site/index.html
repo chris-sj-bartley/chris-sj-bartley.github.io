@@ -264,7 +264,7 @@ description: >-
   </div>
 
   <ol class="timeline" id="timeline">
-    <li data-date="2024-10">
+    <li data-date="2024-10" data-end="2024-12">
       <details>
         <summary><span class="when">October – December 2024</span><span class="ttl">Starting the PhD and collecting Manx</span></summary>
         <div class="tl-body">
@@ -289,7 +289,7 @@ description: >-
       </details>
     </li>
 
-    <li data-date="2025-01">
+    <li data-date="2025-01" data-end="2025-03">
       <details>
         <summary><span class="when">January – March 2025</span><span class="ttl">Manx Forge and learning the tools</span></summary>
         <div class="tl-body">
@@ -307,7 +307,7 @@ description: >-
       </details>
     </li>
 
-    <li data-date="2025-02">
+    <li data-date="2025-02" data-end="2025-06">
       <details>
         <summary><span class="when">February – June 2025</span><span class="ttl">The world's first Manx ASR</span></summary>
         <div class="tl-body">
@@ -339,7 +339,7 @@ description: >-
       </details>
     </li>
 
-    <li data-date="2025-06">
+    <li data-date="2025-06" data-end="2025-07">
       <details>
         <summary><span class="when">June – July 2025</span><span class="ttl">First demo and feedback</span></summary>
         <div class="tl-body">
@@ -367,7 +367,7 @@ description: >-
       </details>
     </li>
 
-    <li data-date="2025-09">
+    <li data-date="2025-09" data-end="2025-10">
       <details>
         <summary><span class="when">September – October 2025</span><span class="ttl">First paper</span></summary>
         <div class="tl-body">
@@ -378,6 +378,19 @@ description: >-
           </p>
           <p class="more">
             <a href="{{ '/projects/#endangered-language-asr' | relative_url }}">More on this project</a>
+          </p>
+        </div>
+      </details>
+    </li>
+
+    <li data-date="2025-11">
+      <details>
+        <summary><span class="when">November 2025</span><span class="ttl">Confirmation review</span></summary>
+        <div class="tl-body">
+          <p>
+            I passed my confirmation review, the milestone that officially makes
+            me a PhD candidate. I wrote a 50-page report that works like a mini
+            thesis and defended it in front of a panel of experts.
           </p>
         </div>
       </details>
@@ -673,6 +686,17 @@ description: >-
       var p = s.split("-");
       return new Date(+p[0], +p[1] - 1, p[2] ? +p[2] : 15);
     }
+    // Where a milestone sits: its date, or the midpoint of a range given as
+    // data-date (first month) to data-end (last month).
+    function position(li) {
+      var s = li.getAttribute("data-date");
+      var e = li.getAttribute("data-end");
+      if (!e) return parse(s);
+      var a = s.split("-"), b = e.split("-");
+      var from = new Date(+a[0], +a[1] - 1, 1);
+      var to = new Date(+b[0], +b[1], 1);   // first day after the last month
+      return new Date((from.getTime() + to.getTime()) / 2);
+    }
 
     var todayPct = pct(today);
     bar.style.setProperty("--today", todayPct + "%");
@@ -695,7 +719,7 @@ description: >-
       var details = li.querySelector("details");
       var when = li.querySelector(".when").textContent;
       var title = li.querySelector(".ttl").textContent;
-      var x = pct(parse(li.getAttribute("data-date")));
+      var x = pct(position(li));
 
       var dot = document.createElement("button");
       dot.type = "button";
