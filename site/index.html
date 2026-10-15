@@ -115,27 +115,35 @@ description: >-
     </li>
 
     <li>
-      <span class="when">2025</span>
+      <span class="when">October 2025</span>
       <h3>A first ASR system for Manx</h3>
       <p>
         Using a spoken dictionary as the seed, I built the first speech
         recognition systems for Manx and for Cornish. Just 40 minutes of
-        dictionary audio was enough for a usable baseline, and as little as 8
-        minutes was enough to begin aligning the long-form recordings and
-        turning them into new training data. I wrote this up as a
+        dictionary audio was enough for a usable baseline (under 50% word
+        error rate), and as little as 8 minutes was enough to begin aligning
+        the long-form recordings and turning them into new training data. With
+        domain-matched segments added, the Manx system reached under 25% word
+        error rate.
+      </p>
+      <p>
+        Along the way the project produced the first utterance-level speech
+        corpora for Manx (18 hours) and Cornish (39 hours). One lesson stood
+        out: variety of speakers, styles and sources mattered more than sheer
+        quantity of audio. I wrote the work up as a
         <a href="https://arxiv.org/abs/2510.04832">preprint</a>.
       </p>
     </li>
 
     <li>
-      <span class="when">2026</span>
-      <h3>Interspeech paper</h3>
+      <span class="when">February 2026</span>
+      <h3>Scaling up to five languages</h3>
       <p>
         The Manx results raised an obvious question: was this a lucky case, or
-        something general? My Interspeech 2026 paper,
+        something general? I set out to answer it in a paper submitted to
+        Interspeech,
         <a href="https://www.isca-archive.org/interspeech_2026/bartley26_interspeech.html"><em>Bootstrapping
-        Endangered Language ASR with Short-Form Corpora</em></a>, set out to
-        answer it. It contributes:
+        Endangered Language ASR with Short-Form Corpora</em></a>. It contributes:
       </p>
       <ul>
         <li>
@@ -161,13 +169,39 @@ description: >-
       </p>
       <p class="more">
         <a href="{{ '/projects/#endangered-language-asr' | relative_url }}">More on this project</a>
-        · <a href="https://www.isca-archive.org/interspeech_2026/bartley26_interspeech.html">Read the paper (ISCA Archive)</a>
       </p>
     </li>
 
     <li>
-      <span class="when">2026</span>
-      <h3>Presenting at Interspeech</h3>
+      <span class="when">June 2026</span>
+      <h3>Accepted to Interspeech</h3>
+      <p>
+        The paper was accepted to Interspeech 2026, one of the main
+        international conferences on speech science and technology. It is now
+        available in the
+        <a href="https://www.isca-archive.org/interspeech_2026/bartley26_interspeech.html">ISCA Archive</a>.
+      </p>
+    </li>
+
+    <li>
+      <span class="when">July 2026</span>
+      <h3>Gaelg AI 1.0</h3>
+      <p>
+        Meanwhile, the models from this work had been finding a home on
+        <a href="https://gaelgai.im">Gaelg AI</a>, my free platform of Manx
+        speech and language tools. In July it reached version 1.0, bringing
+        text-to-speech, speech recognition, translation and audio timestamping
+        together in one place.
+      </p>
+      <p class="more">
+        <a href="{{ '/blog/2026/07/gaelg-ai-1-0-launches/' | relative_url }}">Read the launch post</a>
+        · <a href="{{ '/projects/#gaelg-ai' | relative_url }}">Project details</a>
+      </p>
+    </li>
+
+    <li>
+      <span class="when">September 2026</span>
+      <h3>Presenting in Sydney</h3>
       <p>
         I presented the work at Interspeech 2026 in Sydney, and got to talk
         endangered languages with people working on everything from
@@ -176,58 +210,36 @@ description: >-
       <!-- TODO: link to the Interspeech blog post once written -->
       <p class="more"><em>A write-up of the conference is coming soon.</em></p>
     </li>
+
+    <li>
+      <span class="when">Now</span>
+      <h3>Tackling domain mismatch</h3>
+      <p>
+        My current work picks up the biggest weakness the Interspeech paper
+        exposed, using voice conversion to generate training data for the kinds
+        of speech the systems struggle with. More on that below.
+      </p>
+    </li>
   </ol>
 
   <h2>What's next: the domain problem</h2>
 
   <p>
-    Building a working system exposed the next challenge. ASR is good at
-    transcribing speech that resembles what it was trained on, and much worse
-    at anything else. This is the problem of <strong>domain mismatch</strong>.
-    In endangered languages it bites hard, because the data that exists is
-    skewed towards whatever happened to be recorded, usually careful, read
-    speech from a handful of speakers. Real archives are full of spontaneous
-    conversation: hesitations, fast and reduced speech, and voices the model
-    has never heard.
+    ASR works well on speech that resembles its training data and much worse
+    on anything else. Endangered-language data is usually careful read speech
+    from a few speakers, while real archives are full of spontaneous
+    conversation. The Interspeech paper shows the cost: out-of-domain error is
+    well above in-domain error in all five languages, and for Cornish it climbs
+    from under 8% on read speech to over 70% on a spontaneous interview.
   </p>
 
   <p>
-    The Interspeech paper shows this clearly. Across all five languages, error
-    rates on out-of-domain test sets sit well above in-domain ones; for
-    Cornish, a system scoring under 8% word error rate on read speech climbs
-    above 70% on a spontaneous interview. Often it is this mismatch, not the
-    amount of data, that decides whether a system is actually useful.
-  </p>
-
-  <p>
-    There are several established ways to narrow the gap:
-  </p>
-
-  <ul>
-    <li>
-      <strong>Collect in-domain data</strong>, the most direct fix, but slow
-      and costly when there are few speakers to record and transcribe.
-    </li>
-    <li>
-      <strong>Fine-tune or adapt</strong> a trained model on a small amount of
-      target-domain data.
-    </li>
-    <li>
-      <strong>Self-training</strong>, where a model transcribes untranscribed
-      target-domain audio and learns from its own best guesses.
-    </li>
-    <li>
-      <strong>Data augmentation</strong>, which creates new training examples
-      from existing ones: changing speed, masking parts of the spectrogram,
-      adding noise and reverberation, or synthesising speech with TTS.
-    </li>
-  </ul>
-
-  <p>
-    Augmentation is especially attractive for endangered languages because it
-    needs no new recordings. The catch is that standard augmentation changes
-    the <em>conditions</em> around speech, not the way people actually speak.
-    Speeding up a read sentence doesn't make it sound spontaneous.
+    The usual fixes are collecting in-domain data, adapting models to the
+    target domain, self-training on untranscribed audio, and data
+    augmentation. Augmentation suits endangered languages best because it
+    needs no new recordings, but standard techniques (speed changes, noise,
+    spectrogram masking) alter the conditions around speech, not the way
+    people actually speak.
   </p>
 
   <h2>My approach: converting speech between domains</h2>
