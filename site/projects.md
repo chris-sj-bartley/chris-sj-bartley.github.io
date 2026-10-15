@@ -22,6 +22,8 @@ permalink: /projects/
 
 When I began my PhD, Manx had no utterance-level speech corpus: the collection of short, transcribed clips that speech recognition is normally trained on. It did have recordings. I gathered more than 300 hours of them, from spoken dictionary entries and pronunciation sites to broadcasts, interviews and folklore archives.
 
+Alongside the collection I set up [Manx Forge](https://manx-forge.github.io/), a GitHub page intended as a one-stop shop for Manx language resources.
+
 Almost none of that audio was ready to use. Dictionary entries are single words; long recordings come with transcripts that only loosely line up with the audio. Using the alignment pipeline described [below](#endangered-language-asr), I turned this material into the first utterance-level corpus of Manx, with 18 hours of aligned speech in the first release.
 
 Because every word in the corpus is time-aligned, it can also be searched. The [**searchable Manx speech corpus**](https://speech.gaelg.im/speech), released in September 2026, covers all 350+ hours of Manx speech on the web. Type a word or phrase and hear each place it is spoken in the recordings: a way for learners to hear real usage from many different speakers, and for researchers to explore the archive by text rather than by listening end to end.
@@ -38,8 +40,8 @@ What communities *do* have is different in kind. **Short-form** resources, isola
 
 The work spans two papers:
 
-- **How I Built ASR for Endangered Languages with a Spoken Dictionary** ([preprint](https://arxiv.org/abs/2510.04832)) probes the **minimum requirements**. On Manx, 40 minutes of multi-speaker spoken-dictionary audio gives a usable baseline (under 50% WER), and as little as 8 minutes is enough to bootstrap alignment of long-form recordings; adding domain-matched segments then reaches usable transcription (under 25% WER). Diversity of speakers, styles and domains matters more than raw quantity. The paper delivers the first ASR systems and utterance-level corpora for Manx (18 hours) and Cornish (39 hours).
-- **Bootstrapping Endangered Language ASR with Short-Form Corpora** ([Interspeech 2026](https://www.isca-archive.org/interspeech_2026/bartley26_interspeech.html)) tests **generality and scale**. Using English, it shows that word-level supervision is a viable substitute for utterance-level data, with word error rate stable until segments fall below about one second. It then applies the pipeline to five typologically diverse languages (Cornish, Hawaiian, Jejueo, Manx and Mohawk), creating and open-sourcing a new utterance-level corpus for each, and benchmarks the results against state-of-the-art multilingual models.
+- **How I Built ASR for Endangered Languages with a Spoken Dictionary** ([preprint](https://arxiv.org/abs/2510.04832)) probes the **minimum requirements**. On Manx, 40 minutes of multi-speaker spoken-dictionary audio gives a usable baseline (under 50% WER), and as little as 8 minutes is enough to bootstrap alignment of long-form recordings; adding domain-matched segments then reaches usable transcription (under 25% WER). Diversity of speakers, styles and domains matters more than raw quantity. The paper delivers the first ASR systems and utterance-level corpora for Manx (18 hours) and Cornish (39 hours). [Watch the first Manx ASR demo](https://www.youtube.com/watch?v=0Gmi__3ZZFI), transcribing a local radio show.
+- **Bootstrapping Endangered Language ASR with Short-Form Corpora** ([Interspeech 2026](https://www.isca-archive.org/interspeech_2026/bartley26_interspeech.html)) tests **generality and scale**. Using English, it shows that word-level supervision is a viable substitute for utterance-level data, with word error rate stable until segments fall below about one second. It then applies the pipeline to five typologically diverse languages (Cornish, Hawaiian, Jejueo, Manx and Mohawk), two of which (Jejueo and Mohawk) had never been supported by any ASR system, creating and open-sourcing a new utterance-level corpus for each, and benchmarks the results against state-of-the-art multilingual models.
 
 Across both:
 
@@ -81,6 +83,8 @@ Listen: [example training pairs]({{ '/research/pair-corpora/' | relative_url }})
 - **Listen** (speech recognition): upload or record Manx audio and get a transcription.
 - **Translate**: translate between Manx and English in either direction.
 - **Timestamp**: align a Manx recording with its transcript to get word- or phrase-level timings, useful for subtitling and annotation.
+
+The Manx text-to-speech system, the first for the language, was covered by [BBC News](https://www.bbc.co.uk/news/articles/c2k9l8y1108o), [Isle of Man Today](https://www.iomtoday.co.im/gef/meet-the-manx-phd-student-teaching-ai-how-to-speak-manx-954944) and [Digital Isle of Man](https://www.digitalisleofman.com/ai-news/new-manx-speech-and-language-technology-gaelg-ai/).
 
 The platform is hosted at the University of Sheffield. Feedback and data contributions are always welcome.
 
