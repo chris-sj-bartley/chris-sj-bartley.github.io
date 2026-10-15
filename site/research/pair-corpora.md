@@ -174,5 +174,5 @@ matched unit.
 The 10 LibriTTS speakers reserved for DiffVC's test set are excluded throughout.
 Samples cut from LibriTTS (CC BY 4.0). Part of ongoing doctoral work on
 domain-robust voice conversion. See the
-[project overview]({{ '/projects/' | relative_url }}).
+[research overview]({{ '/research/#voice-conversion-domain-adaptation' | relative_url }}).
 </p>

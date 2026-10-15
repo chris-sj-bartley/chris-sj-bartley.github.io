@@ -251,5 +251,5 @@ Samples from a voice-conversion system evaluated across three conversion tasks, 
 </div>
 
 <p class="pub-venue" markdown="1">
-Part of ongoing doctoral work on domain-robust voice conversion. See the [project overview]({{ '/projects/' | relative_url }}), or the [cross-speaker pair corpora]({{ '/research/pair-corpora/' | relative_url }}) used to train the underlying diffusion voice-conversion model.
+Part of ongoing doctoral work on domain-robust voice conversion. See the [research overview]({{ '/research/#voice-conversion-domain-adaptation' | relative_url }}), or the [cross-speaker pair corpora]({{ '/research/pair-corpora/' | relative_url }}) used to train the underlying diffusion voice-conversion model.
 </p>

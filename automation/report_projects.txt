@@ -2,9 +2,9 @@
 #
 # Each line maps a research project on your site to the sources that feed it, so
 # the report can be organised into one section per project, each linked to its
-# page at /projects/. Format (fields separated by " | "):
+# page at /research/. Format (fields separated by " | "):
 #
-#   Display name | /projects/#anchor | pattern, pattern, ...
+#   Display name | /research/#anchor | pattern, pattern, ...
 #
 # The patterns are matched case-insensitively as substrings against BOTH the
 # GitHub repository full name (e.g. "chris-sj-bartley/vc-experiments") and the
@@ -14,9 +14,11 @@
 # section with no link. Edit freely — a new repo or paper just needs a pattern
 # here (or a new line) to land in the right project section.
 #
-# The anchor is the project's heading on /projects/ lower-cased with spaces as
-# hyphens (e.g. "## Domain Adaptation" -> /projects/#domain-adaptation).
+# The anchor is the project's heading on /research/ lower-cased with spaces as
+# hyphens, unless the heading sets an explicit {#id} (e.g.
+# "## Voice conversion for domain adaptation {#voice-conversion-domain-adaptation}").
+# Work that isn't on the research page (e.g. Gaelg AI) can link to an external URL.
 
-Gaelg AI | /projects/#gaelg-ai | gaelgai, gaelg-ai, gaelg
-Minimally Supervised Endangered Language ASR | /projects/#minimally-supervised-endangered-language-asr | interspeech, endangered, short-form, shortform, bootstrap, spoken-dictionary, kaldi
-Domain Adaptation | /projects/#domain-adaptation | icassp, sub-utterance, subutterance, voice-conversion, voiceconversion, diffvc, grad-vc, vc_models, vc-models, pair-corpora, spontaneous
+Gaelg AI | https://gaelgai.im | gaelgai, gaelg-ai, gaelg
+Endangered Language ASR | /research/#endangered-language-asr | interspeech, endangered, short-form, shortform, bootstrap, spoken-dictionary, kaldi
+Voice Conversion for Domain Adaptation | /research/#voice-conversion-domain-adaptation | icassp, sub-utterance, subutterance, voice-conversion, voiceconversion, diffvc, grad-vc, vc_models, vc-models, pair-corpora, spontaneous

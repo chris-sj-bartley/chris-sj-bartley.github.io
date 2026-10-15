@@ -1,0 +1,20 @@
+---
+layout: null
+permalink: /projects/
+sitemap: false
+---
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <title>Moved to Research</title>
+  <link rel="canonical" href="{{ '/research/' | absolute_url }}">
+  <meta name="robots" content="noindex">
+  <meta http-equiv="refresh" content="0; url={{ '/research/' | relative_url }}">
+  <!-- The old Projects page is now Research; keep old links (including #anchors) working. -->
+  <script>location.replace("{{ '/research/' | relative_url }}" + location.hash);</script>
+</head>
+<body>
+  <p>This page has moved to <a href="{{ '/research/' | relative_url }}">Research</a>.</p>
+</body>
+</html>

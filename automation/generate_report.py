@@ -59,7 +59,7 @@ OVERLEAF_PROJECTS_FILE = REPO_ROOT / "automation" / "overleaf_projects.txt"  # c
 
 # Maps sources (GitHub repos, Overleaf project labels) to the research projects
 # on the site, so the report is grouped into per-project sections that each link
-# to their /projects/ page. See automation/report_projects.txt for the format.
+# to their /research/ page. See automation/report_projects.txt for the format.
 REPORT_PROJECTS_FILE = REPO_ROOT / "automation" / "report_projects.txt"
 
 # Mark a figure for the report by putting this comment on its own line directly
@@ -129,7 +129,7 @@ def out(cmd: list[str], cwd: str | None = None) -> str:
 # --------------------------------------------------------------------------- #
 # Project registry: map each source (a GitHub repo or an Overleaf label) to a
 # research project on the site, so the report groups work per project and links
-# each section to its /projects/ page.
+# each section to its /research/ page.
 # --------------------------------------------------------------------------- #
 OTHER_PROJECT = "Other"  # bucket for sources matching no registered project
 
@@ -519,7 +519,7 @@ STRUCTURE — one section per project. The material is grouped under `=== PROJEC
 - Then write ONE section per project that has material, in the order the projects \
   appear in the material. Begin each with a level-2 heading that LINKS to that \
   project's page using the exact link given, e.g. \
-  `## [Domain Adaptation](/projects/#domain-adaptation)`.
+  `## [Voice Conversion for Domain Adaptation](/research/#voice-conversion-domain-adaptation)`.
 - Within a project's section, write economical prose: what was run and why, what \
   the numbers showed (reproduce results tables as clean Markdown tables with the \
   actual values; embed any verified figure for that project here), and any writing \
